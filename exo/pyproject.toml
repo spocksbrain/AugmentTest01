@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exo"
+version = "0.1.0"
+description = "exo Multi-Agent Framework"
+authors = [
+    {name = "Augment Code", email = "info@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "autogen>=0.2.0",
+    "grpcio>=1.54.0",
+    "protobuf>=4.22.3",
+    "websockets>=11.0.2",
+    "pyautogui>=0.9.54",
+    "neo4j>=5.8.1",
+    "chromadb>=0.4.6",
+    "redis>=4.5.5",
+    "pytest>=7.3.1"
+]
