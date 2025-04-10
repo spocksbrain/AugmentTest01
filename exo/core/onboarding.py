@@ -21,9 +21,10 @@ REQUIRED_ENV_VARS = {
     "llm": [
         {"name": "OPENAI_API_KEY", "description": "OpenAI API key for LLM services", "secret": True, "required": False},
         {"name": "ANTHROPIC_API_KEY", "description": "Anthropic API key for Claude models", "secret": True, "required": False},
+        {"name": "GOOGLE_API_KEY", "description": "Google API key for Gemini models", "secret": True, "required": False},
         {"name": "OPENROUTER_API_KEY", "description": "OpenRouter API key for accessing multiple LLM providers", "secret": True, "required": False},
         {"name": "OLLAMA_BASE_URL", "description": "Base URL for Ollama (default: http://localhost:11434)", "secret": False, "required": False, "default": "http://localhost:11434"},
-        {"name": "DEFAULT_LLM_PROVIDER", "description": "Default LLM provider to use (openai, anthropic, openrouter, ollama)", "secret": False, "required": False, "default": "openai"},
+        {"name": "DEFAULT_LLM_PROVIDER", "description": "Default LLM provider to use (openai, anthropic, google, openrouter, ollama)", "secret": False, "required": False, "default": "openai"},
         {"name": "DEFAULT_LLM_MODEL", "description": "Default LLM model to use", "secret": False, "required": False, "default": "gpt-3.5-turbo"},
     ],
     "mcp": [
@@ -285,6 +286,27 @@ class Onboarding:
                     logger.warning("Anthropic API connection failed: %s", response.text)
             except Exception as e:
                 logger.warning("Error validating Anthropic API connection: %s", e)
+
+        # Try Google API
+        if "GOOGLE_API_KEY" in self.config:
+            try:
+                api_key = self.config["GOOGLE_API_KEY"]
+                headers = {
+                    "x-goog-api-key": api_key,
+                    "Content-Type": "application/json"
+                }
+                response = requests.get(
+                    "https://generativelanguage.googleapis.com/v1beta/models",
+                    headers=headers,
+                    timeout=5
+                )
+                if response.status_code == 200:
+                    logger.info("Google API connection validated")
+                    any_provider_valid = True
+                else:
+                    logger.warning("Google API connection failed: %s", response.text)
+            except Exception as e:
+                logger.warning("Error validating Google API connection: %s", e)
 
         # Try OpenRouter API
         if "OPENROUTER_API_KEY" in self.config:

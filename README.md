@@ -33,7 +33,7 @@ python run_exo.py --onboard
 
 The onboarding process will:
 
-1. Prompt for LLM API keys (OpenAI, Anthropic, OpenRouter, Ollama)
+1. Prompt for LLM API keys (OpenAI, Anthropic, Google, OpenRouter, Ollama)
 2. Prompt for MCP server connection details
 3. Validate connections to ensure everything works
 4. Store the configuration securely for future use
@@ -44,13 +44,14 @@ The system supports multiple LLM providers:
 
 - **OpenAI**: GPT models (requires API key)
 - **Anthropic**: Claude models (requires API key)
+- **Google**: Gemini models (requires API key)
 - **OpenRouter**: Access to multiple providers through a single API (requires API key)
 - **Ollama**: Run models locally (requires Ollama to be installed)
 
 You can configure the default provider and model during onboarding, or set them using environment variables:
 
 ```bash
-export DEFAULT_LLM_PROVIDER="openai"  # Options: openai, anthropic, openrouter, ollama
+export DEFAULT_LLM_PROVIDER="openai"  # Options: openai, anthropic, google, openrouter, ollama
 export DEFAULT_LLM_MODEL="gpt-3.5-turbo"  # Model name for the selected provider
 ```
 
