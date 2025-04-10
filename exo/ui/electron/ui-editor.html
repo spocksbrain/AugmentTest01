@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>exo UI Editor</title>
+  <style>
+    :root {
+      --primary-color: #0078d7;
+      --background-color: #1e1e1e;
+      --secondary-background: #2d2d2d;
+      --text-color: #ffffff;
+      --border-color: #444444;
+      --hover-color: #0063b1;
+      --error-color: #d70000;
+      --success-color: #00b050;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+    
+    .editor-panel {
+      width: 300px;
+      background-color: var(--secondary-background);
+      border-right: 1px solid var(--border-color);
+      padding: 20px;
+      overflow-y: auto;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    
+    .preview-panel {
+      flex: 1;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    
+    h2 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      font-size: 18px;
+      color: var(--text-color);
+    }
+    
+    .control-group {
+      margin-bottom: 20px;
+    }
+    
+    .control-group h3 {
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: var(--text-color);
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 5px;
+    }
+    
+    .control {
+      margin-bottom: 10px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.7);
+    }
+    
+    input[type="color"] {
+      width: 100%;
+      height: 30px;
+      border: none;
+      border-radius: 4px;
+      background: none;
+      cursor: pointer;
+    }
+    
+    input[type="range"] {
+      width: 100%;
+      margin: 5px 0;
+    }
+    
+    input[type="text"] {
+      width: 100%;
+      padding: 5px;
+      box-sizing: border-box;
+      background-color: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      color: var(--text-color);
+      border-radius: 4px;
+    }
+    
+    select {
+      width: 100%;
+      padding: 5px;
+      background-color: rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border-color);
+      color: var(--text-color);
+      border-radius: 4px;
+    }
+    
+    button {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      width: 100%;
+      margin-top: 10px;
+    }
+    
+    button:hover {
+      background-color: var(--hover-color);
+    }
+    
+    .color-preview {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      margin-right: 10px;
+      vertical-align: middle;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .actions {
+      margin-top: 30px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="editor-panel">
+    <h2>exo UI Editor</h2>
+    
+    <div class="control-group">
+      <h3>Colors</h3>
+      
+      <div class="control">
+        <label>
+          <span class="color-preview" id="primary-color-preview"></span>
+          Primary Color
+        </label>
+        <input type="color" id="primary-color" value="#0078d7">
+      </div>
+      
+      <div class="control">
+        <label>
+          <span class="color-preview" id="background-color-preview"></span>
+          Background Color
+        </label>
+        <input type="color" id="background-color" value="#1e1e1e">
+      </div>
+      
+      <div class="control">
+        <label>
+          <span class="color-preview" id="secondary-background-preview"></span>
+          Secondary Background
+        </label>
+        <input type="color" id="secondary-background" value="#2d2d2d">
+      </div>
+      
+      <div class="control">
+        <label>
+          <span class="color-preview" id="text-color-preview"></span>
+          Text Color
+        </label>
+        <input type="color" id="text-color" value="#ffffff">
+      </div>
+      
+      <div class="control">
+        <label>
+          <span class="color-preview" id="border-color-preview"></span>
+          Border Color
+        </label>
+        <input type="color" id="border-color" value="#444444">
+      </div>
+      
+      <div class="control">
+        <label>
+          <span class="color-preview" id="hover-color-preview"></span>
+          Hover Color
+        </label>
+        <input type="color" id="hover-color" value="#0063b1">
+      </div>
+      
+      <div class="control">
+        <label>
+          <span class="color-preview" id="error-color-preview"></span>
+          Error Color
+        </label>
+        <input type="color" id="error-color" value="#d70000">
+      </div>
+      
+      <div class="control">
+        <label>
+          <span class="color-preview" id="success-color-preview"></span>
+          Success Color
+        </label>
+        <input type="color" id="success-color" value="#00b050">
+      </div>
+    </div>
+    
+    <div class="control-group">
+      <h3>Typography</h3>
+      
+      <div class="control">
+        <label>Font Family</label>
+        <select id="font-family">
+          <option value="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif">System Default</option>
+          <option value="'Segoe UI', sans-serif">Segoe UI</option>
+          <option value="'Roboto', sans-serif">Roboto</option>
+          <option value="'Open Sans', sans-serif">Open Sans</option>
+          <option value="'Helvetica Neue', sans-serif">Helvetica Neue</option>
+          <option value="'Arial', sans-serif">Arial</option>
+          <option value="'Courier New', monospace">Courier New</option>
+        </select>
+      </div>
+      
+      <div class="control">
+        <label>Base Font Size (px)</label>
+        <input type="range" id="base-font-size" min="10" max="20" value="14">
+        <span id="base-font-size-value">14px</span>
+      </div>
+    </div>
+    
+    <div class="control-group">
+      <h3>Layout</h3>
+      
+      <div class="control">
+        <label>Border Radius (px)</label>
+        <input type="range" id="border-radius" min="0" max="20" value="8">
+        <span id="border-radius-value">8px</span>
+      </div>
+      
+      <div class="control">
+        <label>Padding (px)</label>
+        <input type="range" id="padding" min="5" max="30" value="15">
+        <span id="padding-value">15px</span>
+      </div>
+    </div>
+    
+    <div class="actions">
+      <button id="apply-changes">Apply Changes</button>
+      <button id="save-changes">Save Changes to File</button>
+      <button id="reset-defaults">Reset to Defaults</button>
+    </div>
+  </div>
+  
+  <div class="preview-panel">
+    <iframe id="preview-frame" src="index.html"></iframe>
+  </div>
+  
+  <script>
+    // Get DOM elements
+    const previewFrame = document.getElementById('preview-frame');
+    const applyChangesBtn = document.getElementById('apply-changes');
+    const saveChangesBtn = document.getElementById('save-changes');
+    const resetDefaultsBtn = document.getElementById('reset-defaults');
+    
+    // Color inputs
+    const primaryColorInput = document.getElementById('primary-color');
+    const backgroundColorInput = document.getElementById('background-color');
+    const secondaryBackgroundInput = document.getElementById('secondary-background');
+    const textColorInput = document.getElementById('text-color');
+    const borderColorInput = document.getElementById('border-color');
+    const hoverColorInput = document.getElementById('hover-color');
+    const errorColorInput = document.getElementById('error-color');
+    const successColorInput = document.getElementById('success-color');
+    
+    // Typography inputs
+    const fontFamilyInput = document.getElementById('font-family');
+    const baseFontSizeInput = document.getElementById('base-font-size');
+    const baseFontSizeValue = document.getElementById('base-font-size-value');
+    
+    // Layout inputs
+    const borderRadiusInput = document.getElementById('border-radius');
+    const borderRadiusValue = document.getElementById('border-radius-value');
+    const paddingInput = document.getElementById('padding');
+    const paddingValue = document.getElementById('padding-value');
+    
+    // Color previews
+    const primaryColorPreview = document.getElementById('primary-color-preview');
+    const backgroundColorPreview = document.getElementById('background-color-preview');
+    const secondaryBackgroundPreview = document.getElementById('secondary-background-preview');
+    const textColorPreview = document.getElementById('text-color-preview');
+    const borderColorPreview = document.getElementById('border-color-preview');
+    const hoverColorPreview = document.getElementById('hover-color-preview');
+    const errorColorPreview = document.getElementById('error-color-preview');
+    const successColorPreview = document.getElementById('success-color-preview');
+    
+    // Default values
+    const defaultValues = {
+      primaryColor: '#0078d7',
+      backgroundColor: '#1e1e1e',
+      secondaryBackground: '#2d2d2d',
+      textColor: '#ffffff',
+      borderColor: '#444444',
+      hoverColor: '#0063b1',
+      errorColor: '#d70000',
+      successColor: '#00b050',
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+      baseFontSize: '14',
+      borderRadius: '8',
+      padding: '15'
+    };
+    
+    // Initialize color previews
+    function updateColorPreviews() {
+      primaryColorPreview.style.backgroundColor = primaryColorInput.value;
+      backgroundColorPreview.style.backgroundColor = backgroundColorInput.value;
+      secondaryBackgroundPreview.style.backgroundColor = secondaryBackgroundInput.value;
+      textColorPreview.style.backgroundColor = textColorInput.value;
+      borderColorPreview.style.backgroundColor = borderColorInput.value;
+      hoverColorPreview.style.backgroundColor = hoverColorInput.value;
+      errorColorPreview.style.backgroundColor = errorColorInput.value;
+      successColorPreview.style.backgroundColor = successColorInput.value;
+    }
+    
+    // Update range value displays
+    baseFontSizeInput.addEventListener('input', () => {
+      baseFontSizeValue.textContent = `${baseFontSizeInput.value}px`;
+    });
+    
+    borderRadiusInput.addEventListener('input', () => {
+      borderRadiusValue.textContent = `${borderRadiusInput.value}px`;
+    });
+    
+    paddingInput.addEventListener('input', () => {
+      paddingValue.textContent = `${paddingInput.value}px`;
+    });
+    
+    // Apply changes to the preview
+    function applyChanges() {
+      const frameDoc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+      const root = frameDoc.documentElement;
+      
+      // Update CSS variables
+      root.style.setProperty('--primary-color', primaryColorInput.value);
+      root.style.setProperty('--background-color', backgroundColorInput.value);
+      root.style.setProperty('--secondary-background', secondaryBackgroundInput.value);
+      root.style.setProperty('--text-color', textColorInput.value);
+      root.style.setProperty('--border-color', borderColorInput.value);
+      root.style.setProperty('--hover-color', hoverColorInput.value);
+      root.style.setProperty('--error-color', errorColorInput.value);
+      root.style.setProperty('--success-color', successColorInput.value);
+      
+      // Update font family
+      frameDoc.body.style.fontFamily = fontFamilyInput.value;
+      
+      // Update base font size
+      frameDoc.body.style.fontSize = `${baseFontSizeInput.value}px`;
+      
+      // Update border radius for various elements
+      const borderRadius = `${borderRadiusInput.value}px`;
+      const elements = frameDoc.querySelectorAll('.connection-banner, .input-container, .connection-banner button');
+      elements.forEach(el => {
+        el.style.borderRadius = borderRadius;
+      });
+      
+      // Update padding
+      const padding = `${paddingInput.value}px`;
+      const paddingElements = frameDoc.querySelectorAll('.chat-container, .connection-banner, .input-container');
+      paddingElements.forEach(el => {
+        el.style.padding = padding;
+      });
+    }
+    
+    // Reset to defaults
+    function resetDefaults() {
+      primaryColorInput.value = defaultValues.primaryColor;
+      backgroundColorInput.value = defaultValues.backgroundColor;
+      secondaryBackgroundInput.value = defaultValues.secondaryBackground;
+      textColorInput.value = defaultValues.textColor;
+      borderColorInput.value = defaultValues.borderColor;
+      hoverColorInput.value = defaultValues.hoverColor;
+      errorColorInput.value = defaultValues.errorColor;
+      successColorInput.value = defaultValues.successColor;
+      
+      fontFamilyInput.value = defaultValues.fontFamily;
+      baseFontSizeInput.value = defaultValues.baseFontSize;
+      baseFontSizeValue.textContent = `${defaultValues.baseFontSize}px`;
+      
+      borderRadiusInput.value = defaultValues.borderRadius;
+      borderRadiusValue.textContent = `${defaultValues.borderRadius}px`;
+      
+      paddingInput.value = defaultValues.padding;
+      paddingValue.textContent = `${defaultValues.padding}px`;
+      
+      updateColorPreviews();
+      applyChanges();
+    }
+    
+    // Save changes to a CSS file
+    function saveChanges() {
+      const css = `:root {
+  --primary-color: ${primaryColorInput.value};
+  --background-color: ${backgroundColorInput.value};
+  --secondary-background: ${secondaryBackgroundInput.value};
+  --text-color: ${textColorInput.value};
+  --border-color: ${borderColorInput.value};
+  --hover-color: ${hoverColorInput.value};
+  --error-color: ${errorColorInput.value};
+  --success-color: ${successColorInput.value};
+}
+
+body {
+  font-family: ${fontFamilyInput.value};
+  font-size: ${baseFontSizeInput.value}px;
+}
+
+.connection-banner, .input-container, .connection-banner button {
+  border-radius: ${borderRadiusInput.value}px;
+}
+
+.chat-container, .connection-banner, .input-container {
+  padding: ${paddingInput.value}px;
+}`;
+
+      const blob = new Blob([css], { type: 'text/css' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'custom-theme.css';
+      a.click();
+      
+      URL.revokeObjectURL(url);
+      
+      alert('Theme saved! You can apply this CSS file to your Electron app.');
+    }
+    
+    // Event listeners
+    applyChangesBtn.addEventListener('click', applyChanges);
+    saveChangesBtn.addEventListener('click', saveChanges);
+    resetDefaultsBtn.addEventListener('click', resetDefaults);
+    
+    // Color input event listeners
+    primaryColorInput.addEventListener('input', updateColorPreviews);
+    backgroundColorInput.addEventListener('input', updateColorPreviews);
+    secondaryBackgroundInput.addEventListener('input', updateColorPreviews);
+    textColorInput.addEventListener('input', updateColorPreviews);
+    borderColorInput.addEventListener('input', updateColorPreviews);
+    hoverColorInput.addEventListener('input', updateColorPreviews);
+    errorColorInput.addEventListener('input', updateColorPreviews);
+    successColorInput.addEventListener('input', updateColorPreviews);
+    
+    // Initialize
+    previewFrame.addEventListener('load', () => {
+      updateColorPreviews();
+      // Apply initial values
+      setTimeout(applyChanges, 500);
+    });
+  </script>
+</body>
+</html>
