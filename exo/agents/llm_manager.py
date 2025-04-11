@@ -255,12 +255,22 @@ class LLMManager:
             is_chat_model = model.startswith("gpt-")
 
             if is_chat_model:
-                data = {
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": max_tokens,
-                    "temperature": temperature
-                }
+                # Check if the model is a newer OpenAI model that requires max_completion_tokens
+                if model.startswith("gpt-4") or model.startswith("gpt-3.5"):
+                    data = {
+                        "model": model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_completion_tokens": max_tokens,
+                        "temperature": temperature
+                    }
+                else:
+                    # Use max_tokens for older models
+                    data = {
+                        "model": model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": max_tokens,
+                        "temperature": temperature
+                    }
                 url = "https://api.openai.com/v1/chat/completions"
             else:
                 data = {
@@ -578,12 +588,22 @@ class LLMManager:
                 "Content-Type": "application/json"
             }
 
-            data = {
-                "model": model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature
-            }
+            # Check if the model is a newer OpenAI model that requires max_completion_tokens
+            if model.startswith("gpt-4") or model.startswith("gpt-3.5"):
+                data = {
+                    "model": model,
+                    "messages": messages,
+                    "max_completion_tokens": max_tokens,
+                    "temperature": temperature
+                }
+            else:
+                # Use max_tokens for older models
+                data = {
+                    "model": model,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature
+                }
 
             response = requests.post(
                 "https://api.openai.com/v1/chat/completions",
