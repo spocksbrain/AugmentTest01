@@ -699,6 +699,11 @@ class Onboarding:
     def export_env_vars(self):
         """Export configuration as environment variables."""
         for var_name, value in self.config.items():
-            os.environ[var_name] = value
+            # Skip None values or convert them to empty strings
+            if value is not None:
+                os.environ[var_name] = value
+            else:
+                # Set to empty string instead of None
+                os.environ[var_name] = ""
 
         logger.info("Environment variables exported from configuration")

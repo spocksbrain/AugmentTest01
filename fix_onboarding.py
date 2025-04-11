@@ -47,12 +47,12 @@ def main():
         shutil.copy2(mcp_servers_file, backup_file)
 
     # Create a new config file with empty values
-    # We'll set the values to None instead of empty strings to ensure the onboarding process prompts for them
+    # We'll use empty strings to ensure compatibility with environment variables
     config = {
-        "OPENAI_API_KEY": None,
-        "ANTHROPIC_API_KEY": None,
-        "GOOGLE_API_KEY": None,
-        "OPENROUTER_API_KEY": None,
+        "OPENAI_API_KEY": "",
+        "ANTHROPIC_API_KEY": "",
+        "GOOGLE_API_KEY": "",
+        "OPENROUTER_API_KEY": "",
         "OLLAMA_BASE_URL": "http://localhost:11434",
         "DEFAULT_LLM_PROVIDER": "openai",
         "DEFAULT_LLM_MODEL": "gpt-3.5-turbo"
