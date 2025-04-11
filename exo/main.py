@@ -14,7 +14,7 @@ from exo.ui.electron_ui import ElectronUI
 
 from exo.core.system import ExoSystem
 from exo.core.onboarding import Onboarding
-from exo.core.service_registry import ServiceRegistry, ServiceNames, register_service
+from exo.core.service_registry import ServiceRegistry, ServiceNames, register_service, get_service
 from exo.agents.software_engineer import SoftwareEngineerAgent
 from exo.agents.mcp_server import MCPServerAgent
 from exo.agents.voice_assistant import VoiceAssistantAgent
@@ -66,12 +66,61 @@ def handle_ui_message(message):
 
     if message_type == "message":
         # Handle chat message
-        chat_message = message.get("message", {})
-        content = chat_message.get("content", "")
+        message_data = message.get("data", {})
+        content = message_data.get("content", "")
 
-        # Process the message through the PIA
-        # In a real implementation, this would be handled by the PIA
+        # Process the message through the LLM
         logger.info(f"Processing message: {content}")
+
+        # Get the LLM manager from the service registry
+        llm_manager = get_service(ServiceNames.LLM_MANAGER)
+
+        # Get the web server from the service registry
+        web_server = get_service("web_server")
+
+        if llm_manager:
+            # Create a simple system prompt
+            system_prompt = "You are a helpful assistant. Provide accurate and concise information."
+
+            # Create a messages array for the chat API
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": content}
+            ]
+
+            # Call the LLM
+            success, response = llm_manager.chat(messages)
+
+            if success and web_server:
+                # Send the response back to the UI
+                web_server.send_message({
+                    "type": "chat_message",
+                    "data": {
+                        "role": "assistant",
+                        "content": response,
+                        "timestamp": time.time()
+                    }
+                })
+            elif web_server:
+                # Send an error message
+                web_server.send_message({
+                    "type": "chat_message",
+                    "data": {
+                        "role": "assistant",
+                        "content": "I'm sorry, I'm having trouble connecting to my language model. Please check your API keys and internet connection.",
+                        "timestamp": time.time()
+                    }
+                })
+        elif web_server:
+            # Send an error message
+            web_server.send_message({
+                "type": "chat_message",
+                "data": {
+                    "role": "assistant",
+                    "content": "I'm sorry, the language model service is not available. Please check your configuration.",
+                    "timestamp": time.time()
+                }
+            })
 
 def main():
     """Main entry point for the exo system."""
@@ -100,6 +149,10 @@ def main():
     # Initialize onboarding and register it as a service
     onboarding = Onboarding()
     register_service(ServiceNames.ONBOARDING, onboarding)
+
+    # Initialize LLM manager and register it as a service
+    llm_manager = LLMManager(onboarding)
+    register_service(ServiceNames.LLM_MANAGER, llm_manager)
 
     # Run onboarding process if needed
     config_exists = os.path.exists(os.path.join(os.path.expanduser("~"), ".exo", "config.json"))
@@ -196,6 +249,9 @@ def main():
                 web_server = WebServer(host=args.host, port=args.port, websocket_port=args.websocket_port)
                 web_server.register_message_handler("message", handle_ui_message)
 
+                # Register the web server as a service
+                register_service("web_server", web_server)
+
                 # Register voice message handler if voice assistant is enabled
                 if args.voice and 'voice_assistant' in ServiceRegistry.services:
                     voice_assistant = ServiceRegistry.services['voice_assistant']
@@ -218,6 +274,9 @@ def main():
                     web_server = WebServer(host=args.host, port=args.port, websocket_port=args.websocket_port, app_mode=args.app_mode)
                     web_server.register_message_handler("message", handle_ui_message)
 
+                    # Register the web server as a service
+                    register_service("web_server", web_server)
+
                     # Register voice message handler if voice assistant is enabled
                     if args.voice and 'voice_assistant' in ServiceRegistry.services:
                         voice_assistant = ServiceRegistry.services['voice_assistant']
@@ -235,6 +294,9 @@ def main():
                 logger.info(f"Starting web server on {args.host}:{args.port} with WebSocket on port {args.websocket_port}")
                 web_server = WebServer(host=args.host, port=args.port, websocket_port=args.websocket_port, app_mode=args.app_mode)
                 web_server.register_message_handler("message", handle_ui_message)
+
+                # Register the web server as a service
+                register_service("web_server", web_server)
 
                 # Register voice message handler if voice assistant is enabled
                 if args.voice and 'voice_assistant' in ServiceRegistry.services:
