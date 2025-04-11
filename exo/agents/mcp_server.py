@@ -4,9 +4,11 @@ MCP Server Creation Agent implementation
 
 import logging
 import time
+import requests
 from typing import Dict, List, Optional, Any, Tuple
 
 from exo.agents.base_agent import BaseAgent
+from exo.core.service_registry import get_service, ServiceNames
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +33,53 @@ class MCPServerAgent(BaseAgent):
             "api_exposure",
             "secure_communication",
             "windows_integration",
-            "mcp_documentation"
+            "mcp_documentation",
+            "mcp_server_discovery"
         ]
+
+        # Repository of known MCP server solutions
+        self.known_mcp_servers = {
+            "github-mcp": {
+                "name": "GitHub MCP Server",
+                "description": "Official MCP server for GitHub integration",
+                "repository": "https://github.com/modelcontextprotocol/servers/tree/main/github",
+                "features": ["GitHub repository access", "Issue tracking", "Pull request management"],
+                "requirements": ["GitHub API token"],
+                "installation": "pip install mcp-server-github"
+            },
+            "slack-mcp": {
+                "name": "Slack MCP Server",
+                "description": "Official MCP server for Slack integration",
+                "repository": "https://github.com/modelcontextprotocol/servers/tree/main/slack",
+                "features": ["Channel access", "Message history", "User information"],
+                "requirements": ["Slack API token"],
+                "installation": "pip install mcp-server-slack"
+            },
+            "google-drive-mcp": {
+                "name": "Google Drive MCP Server",
+                "description": "Official MCP server for Google Drive integration",
+                "repository": "https://github.com/modelcontextprotocol/servers/tree/main/google-drive",
+                "features": ["Document access", "File search", "Folder navigation"],
+                "requirements": ["Google API credentials"],
+                "installation": "pip install mcp-server-google-drive"
+            },
+            "git-mcp": {
+                "name": "Git MCP Server",
+                "description": "MCP server for local Git repositories",
+                "repository": "https://github.com/modelcontextprotocol/servers/tree/main/git",
+                "features": ["Repository browsing", "Commit history", "Diff viewing"],
+                "requirements": ["Local Git installation"],
+                "installation": "pip install mcp-server-git"
+            },
+            "filesystem-mcp": {
+                "name": "Filesystem MCP Server",
+                "description": "Basic MCP server for filesystem access",
+                "repository": "https://github.com/modelcontextprotocol/servers/tree/main/filesystem",
+                "features": ["File browsing", "File reading/writing", "Directory operations"],
+                "requirements": [],
+                "installation": "pip install mcp-server-filesystem"
+            }
+        }
 
     def _process_task(self, task_id: str) -> None:
         """
@@ -67,6 +114,8 @@ class MCPServerAgent(BaseAgent):
             result = self._integrate_with_windows(task)
         elif task_type == "mcp_documentation":
             result = self._create_documentation(task)
+        elif task_type == "mcp_server_discovery":
+            result = self._discover_mcp_servers(task)
         else:
             result = self._handle_general_task(task)
 
@@ -91,7 +140,9 @@ class MCPServerAgent(BaseAgent):
         # In a real system, this would use NLP to analyze the task
         task_lower = task.lower()
 
-        if any(kw in task_lower for kw in ["design", "create", "implement", "build"]):
+        if any(kw in task_lower for kw in ["find", "search", "discover", "existing", "available", "options", "solutions", "alternatives"]):
+            return "mcp_server_discovery"
+        elif any(kw in task_lower for kw in ["design", "create", "implement", "build"]):
             return "mcp_server_design"
         elif any(kw in task_lower for kw in ["api", "endpoint", "interface", "expose"]):
             return "api_exposure"
@@ -230,6 +281,117 @@ class MCPServerAgent(BaseAgent):
             "documentation": "# MCP Server Documentation would be generated here",
             "format": "markdown",
             "description": "MCP server documentation"
+        }
+
+    def _discover_mcp_servers(self, task: str) -> Dict:
+        """
+        Discover existing MCP server solutions based on the task description.
+
+        Args:
+            task: The task description
+
+        Returns:
+            Information about available MCP server solutions
+        """
+        logger.info(f"Discovering MCP server solutions for: {task[:50]}...")
+
+        # Check for specific requirements in the task
+        task_lower = task.lower()
+        relevant_servers = {}
+
+        # Filter servers based on task requirements
+        for server_id, server_info in self.known_mcp_servers.items():
+            # Check if any feature or description matches the task
+            server_text = server_info["description"].lower() + " " + " ".join(server_info["features"]).lower()
+
+            # Simple relevance scoring
+            relevance_score = 0
+            for word in task_lower.split():
+                if len(word) > 3 and word in server_text:  # Only consider meaningful words
+                    relevance_score += 1
+
+            # Include server if it seems relevant
+            if relevance_score > 0:
+                relevant_servers[server_id] = {
+                    **server_info,
+                    "relevance_score": relevance_score
+                }
+
+        # If no specific matches, return all known servers
+        if not relevant_servers:
+            relevant_servers = {server_id: {**info, "relevance_score": 0}
+                              for server_id, info in self.known_mcp_servers.items()}
+
+        # Sort by relevance score
+        sorted_servers = sorted(
+            relevant_servers.items(),
+            key=lambda x: x[1]["relevance_score"],
+            reverse=True
+        )
+
+        # Check for latest MCP servers from the official repository
+        try:
+            # Try to fetch the latest list from the official repository
+            response = requests.get(
+                "https://raw.githubusercontent.com/modelcontextprotocol/servers/main/server_list.json",
+                timeout=5
+            )
+            if response.status_code == 200:
+                # Add any new servers that aren't in our known list
+                online_servers = response.json()
+                for server_id, server_info in online_servers.items():
+                    if server_id not in self.known_mcp_servers:
+                        logger.info(f"Discovered new MCP server: {server_id}")
+                        # Add to the results if relevant
+                        server_text = server_info.get("description", "").lower() + " " + \
+                                     " ".join(server_info.get("features", [])).lower()
+
+                        relevance_score = 0
+                        for word in task_lower.split():
+                            if len(word) > 3 and word in server_text:
+                                relevance_score += 1
+
+                        if relevance_score > 0:
+                            sorted_servers.append((server_id, {
+                                **server_info,
+                                "relevance_score": relevance_score
+                            }))
+        except Exception as e:
+            logger.warning(f"Could not fetch latest MCP server list: {e}")
+
+        # Format the results
+        formatted_servers = []
+        for server_id, server_info in sorted_servers:
+            formatted_servers.append({
+                "id": server_id,
+                "name": server_info["name"],
+                "description": server_info["description"],
+                "features": server_info["features"],
+                "repository": server_info["repository"],
+                "installation": server_info["installation"],
+                "requirements": server_info["requirements"]
+            })
+
+        # Add information about custom implementation option
+        formatted_servers.append({
+            "id": "custom",
+            "name": "Custom MCP Server Implementation",
+            "description": "A custom-built MCP server tailored to your specific requirements",
+            "features": ["Fully customizable", "Designed for your specific use case", "Can be optimized for your environment"],
+            "repository": None,
+            "installation": "Custom development required",
+            "requirements": ["Development resources", "Time for implementation and testing"]
+        })
+
+        # Check if we have access to the MCP Manager for installation
+        mcp_manager = get_service(ServiceNames.MCP_MANAGER)
+        can_install = mcp_manager is not None
+
+        return {
+            "message": f"Found {len(formatted_servers)} MCP server solutions",
+            "servers": formatted_servers,
+            "can_install": can_install,
+            "recommendation": formatted_servers[0]["id"] if formatted_servers else None
         }
 
     def _handle_general_task(self, task: str) -> Dict:
