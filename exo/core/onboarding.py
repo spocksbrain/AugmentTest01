@@ -129,13 +129,14 @@ class Onboarding:
 
         return len(missing_vars) == 0, missing_vars
 
-    def gather_env_vars(self, service: str, interactive: bool = True) -> bool:
+    def gather_env_vars(self, service: str, interactive: bool = True, force: bool = False) -> bool:
         """
         Gather required environment variables for a service.
 
         Args:
             service: Service to gather environment variables for
             interactive: Whether to prompt for missing variables interactively
+            force: Whether to force prompting for all variables, even if they are already set
 
         Returns:
             True if all variables were gathered successfully
@@ -145,7 +146,7 @@ class Onboarding:
             return False
 
         all_vars_set, missing_vars = self.check_env_vars(service)
-        if all_vars_set:
+        if all_vars_set and not force:
             logger.info("All required environment variables for %s are set", service)
             return True
 
@@ -547,12 +548,13 @@ class Onboarding:
         """
         return self.mcp_servers
 
-    def run_onboarding(self, interactive: bool = True) -> bool:
+    def run_onboarding(self, interactive: bool = True, force: bool = False) -> bool:
         """
         Run the onboarding process.
 
         Args:
             interactive: Whether to prompt for missing variables interactively
+            force: Whether to force prompting for all variables, even if they are already set
 
         Returns:
             True if onboarding was successful
@@ -565,7 +567,7 @@ class Onboarding:
 
         # Gather LLM environment variables
         print("\nSetting up LLM integration...")
-        llm_success = self.gather_env_vars("llm", interactive)
+        llm_success = self.gather_env_vars("llm", interactive, force)
         if not llm_success:
             print("Warning: LLM integration setup incomplete")
             print("Some features may not work correctly")

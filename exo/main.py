@@ -105,7 +105,7 @@ def main():
     config_exists = os.path.exists(os.path.join(os.path.expanduser("~"), ".exo", "config.json"))
     if args.onboard:
         logger.info("Running onboarding process (manual)")
-        onboarding.run_onboarding(interactive=True)
+        onboarding.run_onboarding(interactive=True, force=True)
     elif not config_exists and not args.skip_onboarding:
         logger.info("Running onboarding process (automatic)")
         onboarding.run_onboarding(interactive=True)
