@@ -252,11 +252,11 @@ class LLMManager:
             }
 
             # Check if using a chat model
-            is_chat_model = model.startswith("gpt-")
+            is_chat_model = model.startswith("gpt-") or model.startswith("o3-") or model == "o3"
 
             if is_chat_model:
                 # Check if the model is a newer OpenAI model that requires max_completion_tokens
-                if model.startswith("gpt-4") or model.startswith("gpt-3.5"):
+                if model == "o3-mini" or model == "o3" or model.startswith("o3-"):
                     data = {
                         "model": model,
                         "messages": [{"role": "user", "content": prompt}],
@@ -264,7 +264,7 @@ class LLMManager:
                         "temperature": temperature
                     }
                 else:
-                    # Use max_tokens for older models
+                    # Use max_tokens for other models
                     data = {
                         "model": model,
                         "messages": [{"role": "user", "content": prompt}],
@@ -589,7 +589,7 @@ class LLMManager:
             }
 
             # Check if the model is a newer OpenAI model that requires max_completion_tokens
-            if model.startswith("gpt-4") or model.startswith("gpt-3.5"):
+            if model == "o3-mini" or model == "o3" or model.startswith("o3-"):
                 data = {
                     "model": model,
                     "messages": messages,
@@ -597,7 +597,7 @@ class LLMManager:
                     "temperature": temperature
                 }
             else:
-                # Use max_tokens for older models
+                # Use max_tokens for other models
                 data = {
                     "model": model,
                     "messages": messages,
