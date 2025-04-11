@@ -102,12 +102,13 @@ class Onboarding:
         except Exception as e:
             logger.error("Error saving MCP servers: %s", e)
 
-    def check_env_vars(self, service: str) -> Tuple[bool, List[str]]:
+    def check_env_vars(self, service: str, force: bool = False) -> Tuple[bool, List[str]]:
         """
         Check if required environment variables are set for a service.
 
         Args:
             service: Service to check environment variables for
+            force: Whether to force prompting for all variables, even if they are already set
 
         Returns:
             Tuple of (all_vars_set, missing_vars)
@@ -122,8 +123,11 @@ class Onboarding:
             is_required = var.get("required", True)
             has_default = "default" in var
 
-            # Only consider it missing if it's required and has no default
-            if is_required and not has_default:
+            # If force is True, consider all variables as missing
+            if force:
+                missing_vars.append(var_name)
+            # Otherwise, only consider it missing if it's required and has no default
+            elif is_required and not has_default:
                 if var_name not in os.environ and var_name not in self.config:
                     missing_vars.append(var_name)
 
@@ -145,7 +149,7 @@ class Onboarding:
             logger.warning("Unknown service: %s", service)
             return False
 
-        all_vars_set, missing_vars = self.check_env_vars(service)
+        all_vars_set, missing_vars = self.check_env_vars(service, force)
         if all_vars_set and not force:
             logger.info("All required environment variables for %s are set", service)
             return True
@@ -166,12 +170,12 @@ class Onboarding:
             is_required = var.get("required", True)
             has_default = "default" in var
 
-            if var_name in os.environ:
+            if var_name in os.environ and not force:
                 # Environment variable is already set
                 self.config[var_name] = os.environ[var_name]
                 continue
 
-            if var_name in self.config:
+            if var_name in self.config and not force:
                 # Variable is already in config
                 continue
 

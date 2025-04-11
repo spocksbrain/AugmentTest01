@@ -36,9 +36,11 @@ python run_exo.py --onboard
 
 The issue was that the onboarding process wasn't prompting for API keys if they were already set in the configuration file, even if they were empty or invalid. We've updated the code to:
 
-1. Add a `force` parameter to the `gather_env_vars` and `run_onboarding` methods
+1. Add a `force` parameter to the `gather_env_vars`, `check_env_vars`, and `run_onboarding` methods
 2. Update the main.py file to pass `force=True` when the `--onboard` flag is used
-3. Created a fix script to reset the configuration files
+3. Modify the `check_env_vars` method to consider all variables as missing when `force=True`
+4. Update the `gather_env_vars` method to ignore existing values when `force=True`
+5. Create a fix script that sets API keys to `None` to ensure the onboarding process prompts for them
 
 These changes ensure that when you run `python run_exo.py --onboard`, you'll be prompted for all API keys, even if they're already set in the configuration file.
 
