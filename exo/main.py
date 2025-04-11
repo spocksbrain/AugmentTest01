@@ -59,68 +59,122 @@ def register_domain_agents(exo_system):
 
 def handle_ui_message(message):
     """Handle a message from the UI."""
-    logger.info(f"Handling UI message: {message}")
+    try:
+        logger.info(f"Handling UI message: {message}")
 
-    # Extract message data
-    message_type = message.get("type")
+        # Validate message format
+        if not isinstance(message, dict):
+            logger.error(f"Invalid message format: {message}")
+            return
 
-    if message_type == "message":
-        # Handle chat message
-        message_data = message.get("data", {})
-        content = message_data.get("content", "")
+        # Extract message data
+        message_type = message.get("type")
+        if not message_type:
+            logger.error(f"Message missing 'type': {message}")
+            return
 
-        # Process the message through the LLM
-        logger.info(f"Processing message: {content}")
+        if message_type == "message":
+            # Handle chat message
+            try:
+                message_data = message.get("data", {})
+                if not message_data:
+                    logger.error(f"Message missing 'data': {message}")
+                    return
 
-        # Get the LLM manager from the service registry
-        llm_manager = get_service(ServiceNames.LLM_MANAGER)
+                content = message_data.get("content", "")
+                if not content:
+                    logger.warning(f"Message missing 'content': {message}")
+                    # Continue processing, as empty messages are technically valid
 
-        # Get the web server from the service registry
-        web_server = get_service("web_server")
+                # Process the message through the LLM
+                logger.info(f"Processing message: {content}")
 
-        if llm_manager:
-            # Create a simple system prompt
-            system_prompt = "You are a helpful assistant. Provide accurate and concise information."
+                # Get the LLM manager from the service registry
+                llm_manager = get_service(ServiceNames.LLM_MANAGER)
+                if not llm_manager:
+                    logger.error("LLM manager service not available")
 
-            # Create a messages array for the chat API
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": content}
-            ]
+                # Get the web server from the service registry
+                web_server = get_service("web_server")
+                if not web_server:
+                    logger.error("Web server service not available")
+                    return
 
-            # Call the LLM
-            success, response = llm_manager.chat(messages)
+                if llm_manager:
+                    try:
+                        # Create a simple system prompt
+                        system_prompt = "You are a helpful assistant. Provide accurate and concise information."
 
-            if success and web_server:
-                # Send the response back to the UI
-                web_server.send_message({
-                    "type": "chat_message",
-                    "data": {
-                        "role": "assistant",
-                        "content": response,
-                        "timestamp": time.time()
-                    }
-                })
-            elif web_server:
-                # Send an error message
-                web_server.send_message({
-                    "type": "chat_message",
-                    "data": {
-                        "role": "assistant",
-                        "content": "I'm sorry, I'm having trouble connecting to my language model. Please check your API keys and internet connection.",
-                        "timestamp": time.time()
-                    }
-                })
-        elif web_server:
-            # Send an error message
-            web_server.send_message({
-                "type": "chat_message",
-                "data": {
-                    "role": "assistant",
-                    "content": "I'm sorry, the language model service is not available. Please check your configuration.",
-                    "timestamp": time.time()
-                }
-            })
+                        # Create a messages array for the chat API
+                        messages = [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": content}
+                        ]
+
+                        # Call the LLM
+                        success, response = llm_manager.chat(messages)
+
+                        if success:
+                            # Send the response back to the UI
+                            web_server.send_message({
+                                "type": "chat_message",
+                                "data": {
+                                    "role": "assistant",
+                                    "content": response,
+                                    "timestamp": time.time()
+                                }
+                            })
+                        else:
+                            # Send an error message
+                            logger.error(f"LLM chat failed: {response}")
+                            web_server.send_message({
+                                "type": "chat_message",
+                                "data": {
+                                    "role": "assistant",
+                                    "content": "I'm sorry, I'm having trouble connecting to my language model. Please check your API keys and internet connection.",
+                                    "timestamp": time.time()
+                                }
+                            })
+                    except Exception as e:
+                        logger.error(f"Error processing message with LLM: {e}")
+                        web_server.send_message({
+                            "type": "chat_message",
+                            "data": {
+                                "role": "assistant",
+                                "content": "I'm sorry, an error occurred while processing your message.",
+                                "timestamp": time.time()
+                            }
+                        })
+                else:
+                    # Send an error message
+                    web_server.send_message({
+                        "type": "chat_message",
+                        "data": {
+                            "role": "assistant",
+                            "content": "I'm sorry, the language model service is not available. Please check your configuration.",
+                            "timestamp": time.time()
+                        }
+                    })
+            except Exception as e:
+                logger.error(f"Error handling chat message: {e}")
+                # Try to send an error message if possible
+                try:
+                    web_server = get_service("web_server")
+                    if web_server:
+                        web_server.send_message({
+                            "type": "chat_message",
+                            "data": {
+                                "role": "assistant",
+                                "content": "I'm sorry, an error occurred while processing your message.",
+                                "timestamp": time.time()
+                            }
+                        })
+                except Exception as inner_e:
+                    logger.error(f"Failed to send error message: {inner_e}")
+        else:
+            logger.warning(f"Unhandled message type: {message_type}")
+    except Exception as e:
+        logger.error(f"Unhandled exception in handle_ui_message: {e}")
 
 def main():
     """Main entry point for the exo system."""

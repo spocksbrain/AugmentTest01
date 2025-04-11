@@ -106,17 +106,21 @@ class WebServer:
             # Forward the message to the WebSocket clients
             try:
                 # Try to get the existing event loop
-                loop = asyncio.get_event_loop()
-            except RuntimeError:
-                # If there's no event loop in this thread, create a new one
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    # If there's no event loop in this thread, create a new one
+                    logger.debug("No event loop in current thread, creating a new one")
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
 
-            # Run the coroutine in the event loop
-            asyncio.run_coroutine_threadsafe(
-                self._broadcast_message(data),
-                loop
-            )
+                # Run the coroutine in the event loop
+                asyncio.run_coroutine_threadsafe(
+                    self._broadcast_message(data),
+                    loop
+                )
+            except Exception as e:
+                logger.error(f"Error broadcasting message: {e}")
 
             # Call the appropriate handler
             message_type = data.get("type")
