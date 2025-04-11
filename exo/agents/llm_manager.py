@@ -257,11 +257,11 @@ class LLMManager:
             if is_chat_model:
                 # Check if the model is a newer OpenAI model that requires max_completion_tokens
                 if model == "o3-mini" or model == "o3" or model.startswith("o3-"):
+                    # o3 models don't support temperature parameter
                     data = {
                         "model": model,
                         "messages": [{"role": "user", "content": prompt}],
-                        "max_completion_tokens": max_tokens,
-                        "temperature": temperature
+                        "max_completion_tokens": max_tokens
                     }
                 else:
                     # Use max_tokens for other models
@@ -590,11 +590,11 @@ class LLMManager:
 
             # Check if the model is a newer OpenAI model that requires max_completion_tokens
             if model == "o3-mini" or model == "o3" or model.startswith("o3-"):
+                # o3 models don't support temperature parameter
                 data = {
                     "model": model,
                     "messages": messages,
-                    "max_completion_tokens": max_tokens,
-                    "temperature": temperature
+                    "max_completion_tokens": max_tokens
                 }
             else:
                 # Use max_tokens for other models
