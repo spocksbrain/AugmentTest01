@@ -16,8 +16,16 @@
     <div class="app-container">
         <header class="app-header">
             <h1>exo</h1>
-            <div class="dot-container">
-                <div class="dot" id="status-dot"></div>
+            <div class="header-controls">
+                <button id="settings-button" class="icon-button" title="Settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+                <div class="dot-container">
+                    <div class="dot" id="status-dot"></div>
+                </div>
             </div>
         </header>
 
@@ -42,6 +50,146 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="llm-settings">LLM Settings</button>
+                    <button class="tab-button" data-tab="mcp-settings">MCP Servers</button>
+                    <button class="tab-button" data-tab="general-settings">General</button>
+                </div>
+
+                <!-- LLM Settings Tab -->
+                <div id="llm-settings" class="tab-content active">
+                    <h3>Language Model Settings</h3>
+
+                    <div class="settings-section">
+                        <h4>Default Model</h4>
+                        <div class="form-group">
+                            <label for="default-provider">Provider:</label>
+                            <select id="default-provider" name="default-provider">
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="google">Google</option>
+                                <option value="openrouter">OpenRouter</option>
+                                <option value="ollama">Ollama (Local)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="default-model">Model:</label>
+                            <select id="default-model" name="default-model">
+                                <!-- Will be populated based on selected provider -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h4>API Keys</h4>
+                        <div class="form-group">
+                            <label for="openai-api-key">OpenAI API Key:</label>
+                            <div class="api-key-input">
+                                <input type="password" id="openai-api-key" name="openai-api-key" placeholder="sk-...">
+                                <button class="toggle-visibility">Show</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="anthropic-api-key">Anthropic API Key:</label>
+                            <div class="api-key-input">
+                                <input type="password" id="anthropic-api-key" name="anthropic-api-key" placeholder="sk-ant-...">
+                                <button class="toggle-visibility">Show</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="google-api-key">Google API Key:</label>
+                            <div class="api-key-input">
+                                <input type="password" id="google-api-key" name="google-api-key" placeholder="AIza...">
+                                <button class="toggle-visibility">Show</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="openrouter-api-key">OpenRouter API Key:</label>
+                            <div class="api-key-input">
+                                <input type="password" id="openrouter-api-key" name="openrouter-api-key" placeholder="sk-or-...">
+                                <button class="toggle-visibility">Show</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="ollama-host">Ollama Host:</label>
+                            <input type="text" id="ollama-host" name="ollama-host" placeholder="http://localhost:11434">
+                        </div>
+                        <button id="save-llm-settings" class="save-button">Save LLM Settings</button>
+                    </div>
+                </div>
+
+                <!-- MCP Servers Tab -->
+                <div id="mcp-settings" class="tab-content">
+                    <h3>MCP Server Management</h3>
+
+                    <div class="settings-section">
+                        <h4>Installed MCP Servers</h4>
+                        <div id="mcp-servers-list" class="servers-list">
+                            <!-- Will be populated dynamically -->
+                            <div class="empty-state">No MCP servers configured</div>
+                        </div>
+                        <button id="add-mcp-server" class="action-button">Add MCP Server</button>
+                    </div>
+
+                    <!-- Add/Edit MCP Server Form -->
+                    <div id="mcp-server-form" class="server-form hidden">
+                        <h4 id="mcp-form-title">Add MCP Server</h4>
+                        <input type="hidden" id="mcp-server-id" value="">
+                        <div class="form-group">
+                            <label for="mcp-server-name">Server Name:</label>
+                            <input type="text" id="mcp-server-name" name="mcp-server-name" placeholder="My MCP Server">
+                        </div>
+                        <div class="form-group">
+                            <label for="mcp-server-url">Server URL:</label>
+                            <input type="text" id="mcp-server-url" name="mcp-server-url" placeholder="http://localhost:5000">
+                        </div>
+                        <div class="form-group">
+                            <label for="mcp-server-api-key">API Key:</label>
+                            <div class="api-key-input">
+                                <input type="password" id="mcp-server-api-key" name="mcp-server-api-key" placeholder="API Key">
+                                <button class="toggle-visibility">Show</button>
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button id="save-mcp-server" class="save-button">Save Server</button>
+                            <button id="cancel-mcp-server" class="cancel-button">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- General Settings Tab -->
+                <div id="general-settings" class="tab-content">
+                    <h3>General Settings</h3>
+
+                    <div class="settings-section">
+                        <h4>UI Settings</h4>
+                        <div class="form-group">
+                            <label for="theme-select">Theme:</label>
+                            <select id="theme-select" name="theme">
+                                <option value="system">System Default</option>
+                                <option value="light">Light</option>
+                                <option value="dark">Dark</option>
+                            </select>
+                        </div>
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" id="auto-scroll" name="auto-scroll" checked>
+                            <label for="auto-scroll">Auto-scroll to new messages</label>
+                        </div>
+                        <button id="save-general-settings" class="save-button">Save General Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>

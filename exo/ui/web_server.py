@@ -10,11 +10,14 @@ import json
 import logging
 import os
 import threading
+import uuid
 import webbrowser
 from typing import Dict, List, Optional, Any, Callable
 
+import requests
+
 import websockets
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, render_template, send_from_directory, request, jsonify
 from flask_socketio import SocketIO
 
 logger = logging.getLogger(__name__)
@@ -52,6 +55,13 @@ class WebServer:
         self.server_thread = None
         self.websocket_thread = None
 
+        # Settings storage
+        self.settings_dir = os.path.join(os.path.expanduser("~"), ".exo")
+        os.makedirs(self.settings_dir, exist_ok=True)
+        self.llm_settings_path = os.path.join(self.settings_dir, "llm_settings.json")
+        self.mcp_servers_path = os.path.join(self.settings_dir, "mcp_servers.json")
+        self.general_settings_path = os.path.join(self.settings_dir, "general_settings.json")
+
         # Set up routes
         self._setup_routes()
 
@@ -79,6 +89,51 @@ class WebServer:
                 "favicon.ico",
                 mimetype="image/vnd.microsoft.icon"
             )
+
+        # API endpoints for settings
+        @self.app.route("/api/settings/llm", methods=["GET", "POST"])
+        def llm_settings():
+            """Get or update LLM settings."""
+            if request.method == "GET":
+                return jsonify(self._load_llm_settings())
+            else:
+                data = request.json
+                success = self._save_llm_settings(data)
+                return jsonify({"success": success})
+
+        @self.app.route("/api/settings/mcp-servers", methods=["GET", "POST"])
+        def mcp_servers():
+            """Get all MCP servers or add a new one."""
+            if request.method == "GET":
+                return jsonify({"servers": self._load_mcp_servers()})
+            else:
+                data = request.json
+                # Generate a new ID if not provided
+                if not data.get("id"):
+                    data["id"] = str(uuid.uuid4())
+                success = self._add_mcp_server(data)
+                return jsonify({"success": success, "id": data["id"]})
+
+        @self.app.route("/api/settings/mcp-servers/<server_id>", methods=["PUT", "DELETE"])
+        def mcp_server(server_id):
+            """Update or delete an MCP server."""
+            if request.method == "PUT":
+                data = request.json
+                success = self._update_mcp_server(server_id, data)
+                return jsonify({"success": success})
+            else:
+                success = self._delete_mcp_server(server_id)
+                return jsonify({"success": success})
+
+        @self.app.route("/api/settings/general", methods=["GET", "POST"])
+        def general_settings():
+            """Get or update general settings."""
+            if request.method == "GET":
+                return jsonify(self._load_general_settings())
+            else:
+                data = request.json
+                success = self._save_general_settings(data)
+                return jsonify({"success": success})
 
     def _setup_socketio_events(self):
         """Set up the SocketIO events."""
@@ -426,3 +481,146 @@ class WebServer:
         else:
             # Regular browser window
             threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+
+    # Settings management methods
+    def _load_llm_settings(self):
+        """Load LLM settings from file."""
+        if os.path.exists(self.llm_settings_path):
+            try:
+                with open(self.llm_settings_path, "r") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Error loading LLM settings: {e}")
+
+        # Default settings
+        return {
+            "default_provider": "openai",
+            "default_model": "gpt-3.5-turbo",
+            "api_keys": {
+                "openai": "",
+                "anthropic": "",
+                "google": "",
+                "openrouter": ""
+            },
+            "ollama_host": "http://localhost:11434"
+        }
+
+    def _save_llm_settings(self, settings):
+        """Save LLM settings to file."""
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.llm_settings_path), exist_ok=True)
+
+            # Save settings
+            with open(self.llm_settings_path, "w") as f:
+                json.dump(settings, f, indent=2)
+
+            # Update environment variables
+            if "api_keys" in settings:
+                if "openai" in settings["api_keys"] and settings["api_keys"]["openai"]:
+                    os.environ["OPENAI_API_KEY"] = settings["api_keys"]["openai"]
+                if "anthropic" in settings["api_keys"] and settings["api_keys"]["anthropic"]:
+                    os.environ["ANTHROPIC_API_KEY"] = settings["api_keys"]["anthropic"]
+                if "google" in settings["api_keys"] and settings["api_keys"]["google"]:
+                    os.environ["GOOGLE_API_KEY"] = settings["api_keys"]["google"]
+                if "openrouter" in settings["api_keys"] and settings["api_keys"]["openrouter"]:
+                    os.environ["OPENROUTER_API_KEY"] = settings["api_keys"]["openrouter"]
+
+            # Update default provider and model
+            if "default_provider" in settings:
+                os.environ["DEFAULT_LLM_PROVIDER"] = settings["default_provider"]
+            if "default_model" in settings:
+                os.environ["DEFAULT_LLM_MODEL"] = settings["default_model"]
+
+            # Update Ollama host
+            if "ollama_host" in settings:
+                os.environ["OLLAMA_BASE_URL"] = settings["ollama_host"]
+
+            return True
+        except Exception as e:
+            logger.error(f"Error saving LLM settings: {e}")
+            return False
+
+    def _load_mcp_servers(self):
+        """Load MCP servers from file."""
+        if os.path.exists(self.mcp_servers_path):
+            try:
+                with open(self.mcp_servers_path, "r") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Error loading MCP servers: {e}")
+
+        return []
+
+    def _save_mcp_servers(self, servers):
+        """Save MCP servers to file."""
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.mcp_servers_path), exist_ok=True)
+
+            # Save servers
+            with open(self.mcp_servers_path, "w") as f:
+                json.dump(servers, f, indent=2)
+
+            return True
+        except Exception as e:
+            logger.error(f"Error saving MCP servers: {e}")
+            return False
+
+    def _add_mcp_server(self, server):
+        """Add a new MCP server."""
+        servers = self._load_mcp_servers()
+        servers.append(server)
+        return self._save_mcp_servers(servers)
+
+    def _update_mcp_server(self, server_id, server_data):
+        """Update an existing MCP server."""
+        servers = self._load_mcp_servers()
+        for i, server in enumerate(servers):
+            if server.get("id") == server_id:
+                # Update server data
+                servers[i] = server_data
+                return self._save_mcp_servers(servers)
+
+        return False
+
+    def _delete_mcp_server(self, server_id):
+        """Delete an MCP server."""
+        servers = self._load_mcp_servers()
+        for i, server in enumerate(servers):
+            if server.get("id") == server_id:
+                # Remove server
+                servers.pop(i)
+                return self._save_mcp_servers(servers)
+
+        return False
+
+    def _load_general_settings(self):
+        """Load general settings from file."""
+        if os.path.exists(self.general_settings_path):
+            try:
+                with open(self.general_settings_path, "r") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Error loading general settings: {e}")
+
+        # Default settings
+        return {
+            "theme": "system",
+            "auto_scroll": True
+        }
+
+    def _save_general_settings(self, settings):
+        """Save general settings to file."""
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(self.general_settings_path), exist_ok=True)
+
+            # Save settings
+            with open(self.general_settings_path, "w") as f:
+                json.dump(settings, f, indent=2)
+
+            return True
+        except Exception as e:
+            logger.error(f"Error saving general settings: {e}")
+            return False
