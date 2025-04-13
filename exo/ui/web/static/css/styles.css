@@ -653,15 +653,22 @@ body {
     font-style: italic;
 }
 
-.official-badge {
+.official-badge, .local-badge {
     display: inline-block;
-    background-color: #0078d7;
-    color: white;
     font-size: 0.7rem;
     padding: 0.1rem 0.4rem;
     border-radius: 3px;
     margin-left: 0.5rem;
     vertical-align: middle;
+    color: white;
+}
+
+.official-badge {
+    background-color: #0078d7;
+}
+
+.local-badge {
+    background-color: #28a745;
 }
 
 .server-actions {

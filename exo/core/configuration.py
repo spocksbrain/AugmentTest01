@@ -28,6 +28,16 @@ DEFAULT_MCP_SERVERS = [
         "api_key": "",  # User needs to provide their own API key
         "default": True,
         "official": True
+    },
+    {
+        "id": "filesystem",
+        "name": "Filesystem MCP Server",
+        "description": "Local MCP server for file system access and operations",
+        "url": "http://localhost:8090",  # Default local port
+        "api_key": "",  # Local servers typically don't require API keys
+        "default": True,
+        "official": True,
+        "local": True
     }
 ]
 
@@ -251,6 +261,19 @@ class ConfigurationService:
         try:
             with open(MCP_SERVERS_FILE, "r") as f:
                 servers = json.load(f)
+
+            # Check if we need to add any default servers that aren't already in the list
+            if isinstance(servers, list):
+                existing_ids = {server.get("id") for server in servers if isinstance(server, dict) and "id" in server}
+                for default_server in DEFAULT_MCP_SERVERS:
+                    if default_server["id"] not in existing_ids:
+                        servers.append(default_server)
+                        logger.info(f"Added default MCP server: {default_server['name']}")
+            else:
+                # If servers is not a list, replace it with the default servers
+                logger.warning("MCP servers data is not in the expected format, using defaults")
+                servers = DEFAULT_MCP_SERVERS.copy()
+
             return servers
         except Exception as e:
             logger.error(f"Error loading MCP servers: {e}")

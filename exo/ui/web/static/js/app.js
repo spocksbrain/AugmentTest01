@@ -669,6 +669,7 @@ function renderMcpServersList(servers) {
                 <div class="server-name">
                     ${server.name}
                     ${server.official ? '<span class="official-badge">Official</span>' : ''}
+                    ${server.local ? '<span class="local-badge">Local</span>' : ''}
                 </div>
                 <div class="server-url">${server.url}</div>
                 ${server.description ? `<div class="server-description">${server.description}</div>` : ''}

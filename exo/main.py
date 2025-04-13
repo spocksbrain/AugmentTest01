@@ -20,6 +20,7 @@ from exo.agents.mcp_server import MCPServerAgent
 from exo.agents.voice_assistant import VoiceAssistantAgent
 from exo.agents.mcp_manager import MCPManager
 from exo.agents.llm_manager import LLMManager
+from exo.core.mcp_server_manager import mcp_server_manager
 
 # Configure logging
 logging.basicConfig(
@@ -228,6 +229,10 @@ def main():
     mcp_manager = MCPManager(onboarding)
     register_service(ServiceNames.MCP_MANAGER, mcp_manager)
 
+    # Initialize and start local MCP servers
+    logger.info("Initializing MCP server manager")
+    mcp_server_manager.initialize_servers()
+
     # Add MCP server if requested
     if args.add_mcp_server or args.add_local_mcp:
         logger.info("Adding new MCP server")
@@ -391,6 +396,10 @@ def main():
             web_server.stop()
         if electron_ui:
             electron_ui.stop()
+
+        # Stop all local MCP servers
+        logger.info("Stopping local MCP servers")
+        mcp_server_manager.stop_all_local_servers()
 
     logger.info("exo system shutdown complete")
 
