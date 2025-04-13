@@ -14,6 +14,8 @@ import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 
+from exo.core.configuration import ConfigurationService
+
 logger = logging.getLogger(__name__)
 
 # Define required environment variables for different services
@@ -52,55 +54,38 @@ class Onboarding:
         self.config_dir = config_dir or os.path.join(os.path.expanduser("~"), ".exo")
         self.config_file = os.path.join(self.config_dir, "config.json")
         self.mcp_servers_file = os.path.join(self.config_dir, "mcp_servers.json")
-        self.config = {}
-        self.mcp_servers = {}
 
         # Create config directory if it doesn't exist
         os.makedirs(self.config_dir, exist_ok=True)
 
-        # Load existing configuration if available
-        self._load_config()
-        self._load_mcp_servers()
-
-    def _load_config(self):
-        """Load configuration from file."""
-        if os.path.exists(self.config_file):
-            try:
-                with open(self.config_file, "r") as f:
-                    self.config = json.load(f)
-                logger.info("Configuration loaded from %s", self.config_file)
-            except Exception as e:
-                logger.error("Error loading configuration: %s", e)
-                self.config = {}
+        # Load configuration using the ConfigurationService
+        self.config = ConfigurationService.load_config()
+        self.mcp_servers = ConfigurationService.load_mcp_servers()
 
     def _save_config(self):
-        """Save configuration to file."""
-        try:
-            with open(self.config_file, "w") as f:
-                json.dump(self.config, f, indent=2)
+        """Save configuration to file using the ConfigurationService."""
+        success = ConfigurationService.save_config(self.config)
+        if success:
             logger.info("Configuration saved to %s", self.config_file)
-        except Exception as e:
-            logger.error("Error saving configuration: %s", e)
-
-    def _load_mcp_servers(self):
-        """Load MCP servers from file."""
-        if os.path.exists(self.mcp_servers_file):
-            try:
-                with open(self.mcp_servers_file, "r") as f:
-                    self.mcp_servers = json.load(f)
-                logger.info("MCP servers loaded from %s", self.mcp_servers_file)
-            except Exception as e:
-                logger.error("Error loading MCP servers: %s", e)
-                self.mcp_servers = {}
+        else:
+            logger.error("Error saving configuration")
 
     def _save_mcp_servers(self):
-        """Save MCP servers to file."""
-        try:
-            with open(self.mcp_servers_file, "w") as f:
-                json.dump(self.mcp_servers, f, indent=2)
+        """Save MCP servers to file using the ConfigurationService."""
+        # Convert from dict to list format if needed
+        if isinstance(self.mcp_servers, dict):
+            servers_list = []
+            for server_id, server_data in self.mcp_servers.items():
+                server_data["id"] = server_id
+                servers_list.append(server_data)
+            success = ConfigurationService.save_mcp_servers(servers_list)
+        else:
+            success = ConfigurationService.save_mcp_servers(self.mcp_servers)
+
+        if success:
             logger.info("MCP servers saved to %s", self.mcp_servers_file)
-        except Exception as e:
-            logger.error("Error saving MCP servers: %s", e)
+        else:
+            logger.error("Error saving MCP servers")
 
     def check_env_vars(self, service: str, force: bool = False) -> Tuple[bool, List[str]]:
         """
@@ -699,11 +684,28 @@ class Onboarding:
     def export_env_vars(self):
         """Export configuration as environment variables."""
         for var_name, value in self.config.items():
-            # Skip None values or convert them to empty strings
-            if value is not None:
-                os.environ[var_name] = value
-            else:
+            # Skip None values, dictionaries, or convert them to empty strings
+            if value is None:
                 # Set to empty string instead of None
                 os.environ[var_name] = ""
+            elif isinstance(value, dict):
+                # Skip dictionaries (like api_keys and ollama)
+                continue
+            elif isinstance(value, str):
+                os.environ[var_name] = value
+            else:
+                # Convert other types to string
+                os.environ[var_name] = str(value)
+
+        # Handle API keys specifically
+        if "api_keys" in self.config and isinstance(self.config["api_keys"], dict):
+            for provider, key in self.config["api_keys"].items():
+                if key is not None and provider.upper() + "_API_KEY" not in os.environ:
+                    os.environ[provider.upper() + "_API_KEY"] = key
+
+        # Handle Ollama settings
+        if "ollama" in self.config and isinstance(self.config["ollama"], dict):
+            if "host" in self.config["ollama"] and self.config["ollama"]["host"] is not None:
+                os.environ["OLLAMA_BASE_URL"] = self.config["ollama"]["host"]
 
         logger.info("Environment variables exported from configuration")

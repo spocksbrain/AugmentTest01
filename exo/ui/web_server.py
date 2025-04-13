@@ -16,6 +16,8 @@ from typing import Dict, List, Optional, Any, Callable
 
 import requests
 
+from exo.core.configuration import ConfigurationService
+
 import websockets
 from flask import Flask, render_template, send_from_directory, request, jsonify
 from flask_socketio import SocketIO
@@ -54,13 +56,6 @@ class WebServer:
         self.running = False
         self.server_thread = None
         self.websocket_thread = None
-
-        # Settings storage
-        self.settings_dir = os.path.join(os.path.expanduser("~"), ".exo")
-        os.makedirs(self.settings_dir, exist_ok=True)
-        self.llm_settings_path = os.path.join(self.settings_dir, "llm_settings.json")
-        self.mcp_servers_path = os.path.join(self.settings_dir, "mcp_servers.json")
-        self.general_settings_path = os.path.join(self.settings_dir, "general_settings.json")
 
         # Set up routes
         self._setup_routes()
@@ -482,145 +477,72 @@ class WebServer:
             # Regular browser window
             threading.Timer(1.5, lambda: webbrowser.open(url)).start()
 
-    # Settings management methods
+    # Settings management methods using ConfigurationService
     def _load_llm_settings(self):
-        """Load LLM settings from file."""
-        if os.path.exists(self.llm_settings_path):
-            try:
-                with open(self.llm_settings_path, "r") as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"Error loading LLM settings: {e}")
+        """Load LLM settings from file using ConfigurationService."""
+        config = ConfigurationService.load_config()
 
-        # Default settings
+        # Convert from the config format to the UI format
         return {
-            "default_provider": "openai",
-            "default_model": "gpt-3.5-turbo",
+            "default_provider": config.get("default_llm_provider", "openai"),
+            "default_model": config.get("default_llm_model", "gpt-3.5-turbo"),
             "api_keys": {
-                "openai": "",
-                "anthropic": "",
-                "google": "",
-                "openrouter": ""
+                "openai": config.get("api_keys", {}).get("openai", ""),
+                "anthropic": config.get("api_keys", {}).get("anthropic", ""),
+                "google": config.get("api_keys", {}).get("google", ""),
+                "openrouter": config.get("api_keys", {}).get("openrouter", "")
             },
-            "ollama_host": "http://localhost:11434"
+            "ollama_host": config.get("ollama", {}).get("host", "http://localhost:11434")
         }
 
     def _save_llm_settings(self, settings):
-        """Save LLM settings to file."""
-        try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(self.llm_settings_path), exist_ok=True)
+        """Save LLM settings to file using ConfigurationService."""
+        # Load existing config to preserve other settings
+        config = ConfigurationService.load_config()
 
-            # Save settings
-            with open(self.llm_settings_path, "w") as f:
-                json.dump(settings, f, indent=2)
+        # Update config with new settings
+        if "default_provider" in settings:
+            config["default_llm_provider"] = settings["default_provider"]
+        if "default_model" in settings:
+            config["default_llm_model"] = settings["default_model"]
 
-            # Update environment variables
-            if "api_keys" in settings:
-                if "openai" in settings["api_keys"] and settings["api_keys"]["openai"]:
-                    os.environ["OPENAI_API_KEY"] = settings["api_keys"]["openai"]
-                if "anthropic" in settings["api_keys"] and settings["api_keys"]["anthropic"]:
-                    os.environ["ANTHROPIC_API_KEY"] = settings["api_keys"]["anthropic"]
-                if "google" in settings["api_keys"] and settings["api_keys"]["google"]:
-                    os.environ["GOOGLE_API_KEY"] = settings["api_keys"]["google"]
-                if "openrouter" in settings["api_keys"] and settings["api_keys"]["openrouter"]:
-                    os.environ["OPENROUTER_API_KEY"] = settings["api_keys"]["openrouter"]
+        # Update API keys
+        if "api_keys" in settings:
+            if "api_keys" not in config:
+                config["api_keys"] = {}
 
-            # Update default provider and model
-            if "default_provider" in settings:
-                os.environ["DEFAULT_LLM_PROVIDER"] = settings["default_provider"]
-            if "default_model" in settings:
-                os.environ["DEFAULT_LLM_MODEL"] = settings["default_model"]
+            for provider, key in settings["api_keys"].items():
+                config["api_keys"][provider] = key
 
-            # Update Ollama host
-            if "ollama_host" in settings:
-                os.environ["OLLAMA_BASE_URL"] = settings["ollama_host"]
+        # Update Ollama host
+        if "ollama_host" in settings:
+            if "ollama" not in config:
+                config["ollama"] = {}
+            config["ollama"]["host"] = settings["ollama_host"]
 
-            return True
-        except Exception as e:
-            logger.error(f"Error saving LLM settings: {e}")
-            return False
+        # Save config
+        return ConfigurationService.save_config(config)
 
     def _load_mcp_servers(self):
-        """Load MCP servers from file."""
-        if os.path.exists(self.mcp_servers_path):
-            try:
-                with open(self.mcp_servers_path, "r") as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"Error loading MCP servers: {e}")
-
-        return []
-
-    def _save_mcp_servers(self, servers):
-        """Save MCP servers to file."""
-        try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(self.mcp_servers_path), exist_ok=True)
-
-            # Save servers
-            with open(self.mcp_servers_path, "w") as f:
-                json.dump(servers, f, indent=2)
-
-            return True
-        except Exception as e:
-            logger.error(f"Error saving MCP servers: {e}")
-            return False
+        """Load MCP servers from file using ConfigurationService."""
+        return ConfigurationService.load_mcp_servers()
 
     def _add_mcp_server(self, server):
-        """Add a new MCP server."""
-        servers = self._load_mcp_servers()
-        servers.append(server)
-        return self._save_mcp_servers(servers)
+        """Add a new MCP server using ConfigurationService."""
+        return ConfigurationService.add_mcp_server(server)
 
     def _update_mcp_server(self, server_id, server_data):
-        """Update an existing MCP server."""
-        servers = self._load_mcp_servers()
-        for i, server in enumerate(servers):
-            if server.get("id") == server_id:
-                # Update server data
-                servers[i] = server_data
-                return self._save_mcp_servers(servers)
-
-        return False
+        """Update an existing MCP server using ConfigurationService."""
+        return ConfigurationService.update_mcp_server(server_id, server_data)
 
     def _delete_mcp_server(self, server_id):
-        """Delete an MCP server."""
-        servers = self._load_mcp_servers()
-        for i, server in enumerate(servers):
-            if server.get("id") == server_id:
-                # Remove server
-                servers.pop(i)
-                return self._save_mcp_servers(servers)
-
-        return False
+        """Delete an MCP server using ConfigurationService."""
+        return ConfigurationService.delete_mcp_server(server_id)
 
     def _load_general_settings(self):
-        """Load general settings from file."""
-        if os.path.exists(self.general_settings_path):
-            try:
-                with open(self.general_settings_path, "r") as f:
-                    return json.load(f)
-            except Exception as e:
-                logger.error(f"Error loading general settings: {e}")
-
-        # Default settings
-        return {
-            "theme": "system",
-            "auto_scroll": True
-        }
+        """Load general settings from file using ConfigurationService."""
+        return ConfigurationService.load_general_settings()
 
     def _save_general_settings(self, settings):
-        """Save general settings to file."""
-        try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(self.general_settings_path), exist_ok=True)
-
-            # Save settings
-            with open(self.general_settings_path, "w") as f:
-                json.dump(settings, f, indent=2)
-
-            return True
-        except Exception as e:
-            logger.error(f"Error saving general settings: {e}")
-            return False
+        """Save general settings to file using ConfigurationService."""
+        return ConfigurationService.save_general_settings(settings)
