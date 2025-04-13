@@ -14,6 +14,8 @@ import requests
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 
+from exo.core.configuration import ConfigurationService
+
 logger = logging.getLogger(__name__)
 
 # Define required environment variables for different services
@@ -21,9 +23,10 @@ REQUIRED_ENV_VARS = {
     "llm": [
         {"name": "OPENAI_API_KEY", "description": "OpenAI API key for LLM services", "secret": True, "required": False},
         {"name": "ANTHROPIC_API_KEY", "description": "Anthropic API key for Claude models", "secret": True, "required": False},
+        {"name": "GOOGLE_API_KEY", "description": "Google API key for Gemini models", "secret": True, "required": False},
         {"name": "OPENROUTER_API_KEY", "description": "OpenRouter API key for accessing multiple LLM providers", "secret": True, "required": False},
         {"name": "OLLAMA_BASE_URL", "description": "Base URL for Ollama (default: http://localhost:11434)", "secret": False, "required": False, "default": "http://localhost:11434"},
-        {"name": "DEFAULT_LLM_PROVIDER", "description": "Default LLM provider to use (openai, anthropic, openrouter, ollama)", "secret": False, "required": False, "default": "openai"},
+        {"name": "DEFAULT_LLM_PROVIDER", "description": "Default LLM provider to use (openai, anthropic, google, openrouter, ollama)", "secret": False, "required": False, "default": "openai"},
         {"name": "DEFAULT_LLM_MODEL", "description": "Default LLM model to use", "secret": False, "required": False, "default": "gpt-3.5-turbo"},
     ],
     "mcp": [
@@ -51,62 +54,46 @@ class Onboarding:
         self.config_dir = config_dir or os.path.join(os.path.expanduser("~"), ".exo")
         self.config_file = os.path.join(self.config_dir, "config.json")
         self.mcp_servers_file = os.path.join(self.config_dir, "mcp_servers.json")
-        self.config = {}
-        self.mcp_servers = {}
 
         # Create config directory if it doesn't exist
         os.makedirs(self.config_dir, exist_ok=True)
 
-        # Load existing configuration if available
-        self._load_config()
-        self._load_mcp_servers()
-
-    def _load_config(self):
-        """Load configuration from file."""
-        if os.path.exists(self.config_file):
-            try:
-                with open(self.config_file, "r") as f:
-                    self.config = json.load(f)
-                logger.info("Configuration loaded from %s", self.config_file)
-            except Exception as e:
-                logger.error("Error loading configuration: %s", e)
-                self.config = {}
+        # Load configuration using the ConfigurationService
+        self.config = ConfigurationService.load_config()
+        self.mcp_servers = ConfigurationService.load_mcp_servers()
 
     def _save_config(self):
-        """Save configuration to file."""
-        try:
-            with open(self.config_file, "w") as f:
-                json.dump(self.config, f, indent=2)
+        """Save configuration to file using the ConfigurationService."""
+        success = ConfigurationService.save_config(self.config)
+        if success:
             logger.info("Configuration saved to %s", self.config_file)
-        except Exception as e:
-            logger.error("Error saving configuration: %s", e)
-
-    def _load_mcp_servers(self):
-        """Load MCP servers from file."""
-        if os.path.exists(self.mcp_servers_file):
-            try:
-                with open(self.mcp_servers_file, "r") as f:
-                    self.mcp_servers = json.load(f)
-                logger.info("MCP servers loaded from %s", self.mcp_servers_file)
-            except Exception as e:
-                logger.error("Error loading MCP servers: %s", e)
-                self.mcp_servers = {}
+        else:
+            logger.error("Error saving configuration")
 
     def _save_mcp_servers(self):
-        """Save MCP servers to file."""
-        try:
-            with open(self.mcp_servers_file, "w") as f:
-                json.dump(self.mcp_servers, f, indent=2)
-            logger.info("MCP servers saved to %s", self.mcp_servers_file)
-        except Exception as e:
-            logger.error("Error saving MCP servers: %s", e)
+        """Save MCP servers to file using the ConfigurationService."""
+        # Convert from dict to list format if needed
+        if isinstance(self.mcp_servers, dict):
+            servers_list = []
+            for server_id, server_data in self.mcp_servers.items():
+                server_data["id"] = server_id
+                servers_list.append(server_data)
+            success = ConfigurationService.save_mcp_servers(servers_list)
+        else:
+            success = ConfigurationService.save_mcp_servers(self.mcp_servers)
 
-    def check_env_vars(self, service: str) -> Tuple[bool, List[str]]:
+        if success:
+            logger.info("MCP servers saved to %s", self.mcp_servers_file)
+        else:
+            logger.error("Error saving MCP servers")
+
+    def check_env_vars(self, service: str, force: bool = False) -> Tuple[bool, List[str]]:
         """
         Check if required environment variables are set for a service.
 
         Args:
             service: Service to check environment variables for
+            force: Whether to force prompting for all variables, even if they are already set
 
         Returns:
             Tuple of (all_vars_set, missing_vars)
@@ -121,20 +108,24 @@ class Onboarding:
             is_required = var.get("required", True)
             has_default = "default" in var
 
-            # Only consider it missing if it's required and has no default
-            if is_required and not has_default:
+            # If force is True, consider all variables as missing
+            if force:
+                missing_vars.append(var_name)
+            # Otherwise, only consider it missing if it's required and has no default
+            elif is_required and not has_default:
                 if var_name not in os.environ and var_name not in self.config:
                     missing_vars.append(var_name)
 
         return len(missing_vars) == 0, missing_vars
 
-    def gather_env_vars(self, service: str, interactive: bool = True) -> bool:
+    def gather_env_vars(self, service: str, interactive: bool = True, force: bool = False) -> bool:
         """
         Gather required environment variables for a service.
 
         Args:
             service: Service to gather environment variables for
             interactive: Whether to prompt for missing variables interactively
+            force: Whether to force prompting for all variables, even if they are already set
 
         Returns:
             True if all variables were gathered successfully
@@ -143,8 +134,8 @@ class Onboarding:
             logger.warning("Unknown service: %s", service)
             return False
 
-        all_vars_set, missing_vars = self.check_env_vars(service)
-        if all_vars_set:
+        all_vars_set, missing_vars = self.check_env_vars(service, force)
+        if all_vars_set and not force:
             logger.info("All required environment variables for %s are set", service)
             return True
 
@@ -164,12 +155,12 @@ class Onboarding:
             is_required = var.get("required", True)
             has_default = "default" in var
 
-            if var_name in os.environ:
+            if var_name in os.environ and not force:
                 # Environment variable is already set
                 self.config[var_name] = os.environ[var_name]
                 continue
 
-            if var_name in self.config:
+            if var_name in self.config and not force:
                 # Variable is already in config
                 continue
 
@@ -285,6 +276,27 @@ class Onboarding:
                     logger.warning("Anthropic API connection failed: %s", response.text)
             except Exception as e:
                 logger.warning("Error validating Anthropic API connection: %s", e)
+
+        # Try Google API
+        if "GOOGLE_API_KEY" in self.config:
+            try:
+                api_key = self.config["GOOGLE_API_KEY"]
+                headers = {
+                    "x-goog-api-key": api_key,
+                    "Content-Type": "application/json"
+                }
+                response = requests.get(
+                    "https://generativelanguage.googleapis.com/v1beta/models",
+                    headers=headers,
+                    timeout=5
+                )
+                if response.status_code == 200:
+                    logger.info("Google API connection validated")
+                    any_provider_valid = True
+                else:
+                    logger.warning("Google API connection failed: %s", response.text)
+            except Exception as e:
+                logger.warning("Error validating Google API connection: %s", e)
 
         # Try OpenRouter API
         if "OPENROUTER_API_KEY" in self.config:
@@ -525,12 +537,13 @@ class Onboarding:
         """
         return self.mcp_servers
 
-    def run_onboarding(self, interactive: bool = True) -> bool:
+    def run_onboarding(self, interactive: bool = True, force: bool = False) -> bool:
         """
         Run the onboarding process.
 
         Args:
             interactive: Whether to prompt for missing variables interactively
+            force: Whether to force prompting for all variables, even if they are already set
 
         Returns:
             True if onboarding was successful
@@ -543,7 +556,7 @@ class Onboarding:
 
         # Gather LLM environment variables
         print("\nSetting up LLM integration...")
-        llm_success = self.gather_env_vars("llm", interactive)
+        llm_success = self.gather_env_vars("llm", interactive, force)
         if not llm_success:
             print("Warning: LLM integration setup incomplete")
             print("Some features may not work correctly")
@@ -671,6 +684,28 @@ class Onboarding:
     def export_env_vars(self):
         """Export configuration as environment variables."""
         for var_name, value in self.config.items():
-            os.environ[var_name] = value
+            # Skip None values, dictionaries, or convert them to empty strings
+            if value is None:
+                # Set to empty string instead of None
+                os.environ[var_name] = ""
+            elif isinstance(value, dict):
+                # Skip dictionaries (like api_keys and ollama)
+                continue
+            elif isinstance(value, str):
+                os.environ[var_name] = value
+            else:
+                # Convert other types to string
+                os.environ[var_name] = str(value)
+
+        # Handle API keys specifically
+        if "api_keys" in self.config and isinstance(self.config["api_keys"], dict):
+            for provider, key in self.config["api_keys"].items():
+                if key is not None and provider.upper() + "_API_KEY" not in os.environ:
+                    os.environ[provider.upper() + "_API_KEY"] = key
+
+        # Handle Ollama settings
+        if "ollama" in self.config and isinstance(self.config["ollama"], dict):
+            if "host" in self.config["ollama"] and self.config["ollama"]["host"] is not None:
+                os.environ["OLLAMA_BASE_URL"] = self.config["ollama"]["host"]
 
         logger.info("Environment variables exported from configuration")

@@ -14,12 +14,13 @@ from exo.ui.electron_ui import ElectronUI
 
 from exo.core.system import ExoSystem
 from exo.core.onboarding import Onboarding
-from exo.core.service_registry import ServiceRegistry, ServiceNames, register_service
+from exo.core.service_registry import ServiceRegistry, ServiceNames, register_service, get_service
 from exo.agents.software_engineer import SoftwareEngineerAgent
 from exo.agents.mcp_server import MCPServerAgent
 from exo.agents.voice_assistant import VoiceAssistantAgent
 from exo.agents.mcp_manager import MCPManager
 from exo.agents.llm_manager import LLMManager
+from exo.core.mcp_server_manager import mcp_server_manager
 
 # Configure logging
 logging.basicConfig(
@@ -59,19 +60,122 @@ def register_domain_agents(exo_system):
 
 def handle_ui_message(message):
     """Handle a message from the UI."""
-    logger.info(f"Handling UI message: {message}")
+    try:
+        logger.info(f"Handling UI message: {message}")
 
-    # Extract message data
-    message_type = message.get("type")
+        # Validate message format
+        if not isinstance(message, dict):
+            logger.error(f"Invalid message format: {message}")
+            return
 
-    if message_type == "message":
-        # Handle chat message
-        chat_message = message.get("message", {})
-        content = chat_message.get("content", "")
+        # Extract message data
+        message_type = message.get("type")
+        if not message_type:
+            logger.error(f"Message missing 'type': {message}")
+            return
 
-        # Process the message through the PIA
-        # In a real implementation, this would be handled by the PIA
-        logger.info(f"Processing message: {content}")
+        if message_type == "message":
+            # Handle chat message
+            try:
+                message_data = message.get("data", {})
+                if not message_data:
+                    logger.error(f"Message missing 'data': {message}")
+                    return
+
+                content = message_data.get("content", "")
+                if not content:
+                    logger.warning(f"Message missing 'content': {message}")
+                    # Continue processing, as empty messages are technically valid
+
+                # Process the message through the LLM
+                logger.info(f"Processing message: {content}")
+
+                # Get the LLM manager from the service registry
+                llm_manager = get_service(ServiceNames.LLM_MANAGER)
+                if not llm_manager:
+                    logger.error("LLM manager service not available")
+
+                # Get the web server from the service registry
+                web_server = get_service("web_server")
+                if not web_server:
+                    logger.error("Web server service not available")
+                    return
+
+                if llm_manager:
+                    try:
+                        # Create a simple system prompt
+                        system_prompt = "You are a helpful assistant. Provide accurate and concise information."
+
+                        # Create a messages array for the chat API
+                        messages = [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": content}
+                        ]
+
+                        # Call the LLM
+                        success, response = llm_manager.chat(messages)
+
+                        if success:
+                            # Send the response back to the UI
+                            web_server.send_message({
+                                "type": "chat_message",
+                                "data": {
+                                    "role": "assistant",
+                                    "content": response,
+                                    "timestamp": time.time()
+                                }
+                            })
+                        else:
+                            # Send an error message
+                            logger.error(f"LLM chat failed: {response}")
+                            web_server.send_message({
+                                "type": "chat_message",
+                                "data": {
+                                    "role": "assistant",
+                                    "content": "I'm sorry, I'm having trouble connecting to my language model. Please check your API keys and internet connection.",
+                                    "timestamp": time.time()
+                                }
+                            })
+                    except Exception as e:
+                        logger.error(f"Error processing message with LLM: {e}")
+                        web_server.send_message({
+                            "type": "chat_message",
+                            "data": {
+                                "role": "assistant",
+                                "content": "I'm sorry, an error occurred while processing your message.",
+                                "timestamp": time.time()
+                            }
+                        })
+                else:
+                    # Send an error message
+                    web_server.send_message({
+                        "type": "chat_message",
+                        "data": {
+                            "role": "assistant",
+                            "content": "I'm sorry, the language model service is not available. Please check your configuration.",
+                            "timestamp": time.time()
+                        }
+                    })
+            except Exception as e:
+                logger.error(f"Error handling chat message: {e}")
+                # Try to send an error message if possible
+                try:
+                    web_server = get_service("web_server")
+                    if web_server:
+                        web_server.send_message({
+                            "type": "chat_message",
+                            "data": {
+                                "role": "assistant",
+                                "content": "I'm sorry, an error occurred while processing your message.",
+                                "timestamp": time.time()
+                            }
+                        })
+                except Exception as inner_e:
+                    logger.error(f"Failed to send error message: {inner_e}")
+        else:
+            logger.warning(f"Unhandled message type: {message_type}")
+    except Exception as e:
+        logger.error(f"Unhandled exception in handle_ui_message: {e}")
 
 def main():
     """Main entry point for the exo system."""
@@ -101,11 +205,15 @@ def main():
     onboarding = Onboarding()
     register_service(ServiceNames.ONBOARDING, onboarding)
 
+    # Initialize LLM manager and register it as a service
+    llm_manager = LLMManager(onboarding)
+    register_service(ServiceNames.LLM_MANAGER, llm_manager)
+
     # Run onboarding process if needed
     config_exists = os.path.exists(os.path.join(os.path.expanduser("~"), ".exo", "config.json"))
     if args.onboard:
         logger.info("Running onboarding process (manual)")
-        onboarding.run_onboarding(interactive=True)
+        onboarding.run_onboarding(interactive=True, force=True)
     elif not config_exists and not args.skip_onboarding:
         logger.info("Running onboarding process (automatic)")
         onboarding.run_onboarding(interactive=True)
@@ -120,6 +228,10 @@ def main():
 
     mcp_manager = MCPManager(onboarding)
     register_service(ServiceNames.MCP_MANAGER, mcp_manager)
+
+    # Initialize and start local MCP servers
+    logger.info("Initializing MCP server manager")
+    mcp_server_manager.initialize_servers()
 
     # Add MCP server if requested
     if args.add_mcp_server or args.add_local_mcp:
@@ -196,6 +308,9 @@ def main():
                 web_server = WebServer(host=args.host, port=args.port, websocket_port=args.websocket_port)
                 web_server.register_message_handler("message", handle_ui_message)
 
+                # Register the web server as a service
+                register_service("web_server", web_server)
+
                 # Register voice message handler if voice assistant is enabled
                 if args.voice and 'voice_assistant' in ServiceRegistry.services:
                     voice_assistant = ServiceRegistry.services['voice_assistant']
@@ -218,6 +333,9 @@ def main():
                     web_server = WebServer(host=args.host, port=args.port, websocket_port=args.websocket_port, app_mode=args.app_mode)
                     web_server.register_message_handler("message", handle_ui_message)
 
+                    # Register the web server as a service
+                    register_service("web_server", web_server)
+
                     # Register voice message handler if voice assistant is enabled
                     if args.voice and 'voice_assistant' in ServiceRegistry.services:
                         voice_assistant = ServiceRegistry.services['voice_assistant']
@@ -235,6 +353,9 @@ def main():
                 logger.info(f"Starting web server on {args.host}:{args.port} with WebSocket on port {args.websocket_port}")
                 web_server = WebServer(host=args.host, port=args.port, websocket_port=args.websocket_port, app_mode=args.app_mode)
                 web_server.register_message_handler("message", handle_ui_message)
+
+                # Register the web server as a service
+                register_service("web_server", web_server)
 
                 # Register voice message handler if voice assistant is enabled
                 if args.voice and 'voice_assistant' in ServiceRegistry.services:
@@ -275,6 +396,10 @@ def main():
             web_server.stop()
         if electron_ui:
             electron_ui.stop()
+
+        # Stop all local MCP servers
+        logger.info("Stopping local MCP servers")
+        mcp_server_manager.stop_all_local_servers()
 
     logger.info("exo system shutdown complete")
 

@@ -33,7 +33,7 @@ python run_exo.py --onboard
 
 The onboarding process will:
 
-1. Prompt for LLM API keys (OpenAI, Anthropic, OpenRouter, Ollama)
+1. Prompt for LLM API keys (OpenAI, Anthropic, Google, OpenRouter, Ollama)
 2. Prompt for MCP server connection details
 3. Validate connections to ensure everything works
 4. Store the configuration securely for future use
@@ -44,13 +44,14 @@ The system supports multiple LLM providers:
 
 - **OpenAI**: GPT models (requires API key)
 - **Anthropic**: Claude models (requires API key)
+- **Google**: Gemini models (requires API key)
 - **OpenRouter**: Access to multiple providers through a single API (requires API key)
 - **Ollama**: Run models locally (requires Ollama to be installed)
 
 You can configure the default provider and model during onboarding, or set them using environment variables:
 
 ```bash
-export DEFAULT_LLM_PROVIDER="openai"  # Options: openai, anthropic, openrouter, ollama
+export DEFAULT_LLM_PROVIDER="openai"  # Options: openai, anthropic, google, openrouter, ollama
 export DEFAULT_LLM_MODEL="gpt-3.5-turbo"  # Model name for the selected provider
 ```
 
@@ -118,11 +119,36 @@ The voice assistant requires the following Python packages:
 
 These packages will be automatically installed when you run the system with the `--voice` flag for the first time.
 
-### Adding MCP Servers
+### MCP Server Integration
+
+#### Discovering MCP Server Solutions
+
+The system includes an MCP Server Agent that can help you discover existing MCP server solutions based on your requirements. You can ask the agent to find MCP servers for specific use cases, and it will present you with a list of options, including:
+
+- Official MCP servers from the Model Context Protocol repository
+- Community-built MCP servers
+- Custom MCP server implementation option
+
+For each option, the agent will provide information about:
+
+- Features and capabilities
+- Installation requirements
+- API documentation
+- Recommended use cases
+
+To discover MCP server solutions, simply ask the agent something like:
+
+- "Find MCP server solutions for GitHub integration"
+- "What MCP servers are available for file system access?"
+- "Show me options for MCP servers"
+
+The agent will search for relevant solutions and present them to you, along with a recommendation based on your requirements.
+
+#### Adding MCP Servers
 
 You can add new MCP servers at any time. There are two options:
 
-#### Remote MCP Servers
+##### Remote MCP Servers
 
 To add a remote MCP server:
 
@@ -137,7 +163,7 @@ This will guide you through the process of adding a new remote MCP server, inclu
 3. Testing the connection to ensure it works
 4. Storing the server configuration for future use
 
-#### Local MCP Servers
+##### Local MCP Servers
 
 To install and add a local MCP server:
 

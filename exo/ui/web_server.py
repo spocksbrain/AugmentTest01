@@ -10,11 +10,16 @@ import json
 import logging
 import os
 import threading
+import uuid
 import webbrowser
 from typing import Dict, List, Optional, Any, Callable
 
+import requests
+
+from exo.core.configuration import ConfigurationService
+
 import websockets
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, render_template, send_from_directory, request, jsonify
 from flask_socketio import SocketIO
 
 logger = logging.getLogger(__name__)
@@ -80,6 +85,174 @@ class WebServer:
                 mimetype="image/vnd.microsoft.icon"
             )
 
+        # API endpoints for settings
+        @self.app.route("/api/settings/llm", methods=["GET", "POST"])
+        def llm_settings():
+            """Get or update LLM settings."""
+            if request.method == "GET":
+                return jsonify(self._load_llm_settings())
+            else:
+                data = request.json
+                success = self._save_llm_settings(data)
+                return jsonify({"success": success})
+
+        @self.app.route("/api/settings/mcp-servers", methods=["GET", "POST"])
+        def mcp_servers():
+            """Get all MCP servers or add a new one."""
+            if request.method == "GET":
+                return jsonify({"servers": self._load_mcp_servers()})
+            else:
+                data = request.json
+                # Generate a new ID if not provided
+                if not data.get("id"):
+                    data["id"] = str(uuid.uuid4())
+                success = self._add_mcp_server(data)
+                return jsonify({"success": success, "id": data["id"]})
+
+        @self.app.route("/api/settings/mcp-servers/<server_id>", methods=["PUT", "DELETE"])
+        def mcp_server(server_id):
+            """Update or delete an MCP server."""
+            if request.method == "PUT":
+                data = request.json
+                success = self._update_mcp_server(server_id, data)
+                return jsonify({"success": success})
+            else:
+                success = self._delete_mcp_server(server_id)
+                return jsonify({"success": success})
+
+        @self.app.route("/api/settings/general", methods=["GET", "POST"])
+        def general_settings():
+            """Get or update general settings."""
+            if request.method == "GET":
+                return jsonify(self._load_general_settings())
+            else:
+                data = request.json
+                success = self._save_general_settings(data)
+                return jsonify({"success": success})
+
+        @self.app.route("/api/models/<provider>", methods=["GET"])
+        def get_models(provider):
+            """Get available models for a specific provider."""
+            try:
+                # Import the LLM manager
+                from exo.agents.llm_manager import LLMManager
+
+                # Create an instance of the LLM manager
+                llm_manager = LLMManager()
+
+                # Get models for the specified provider
+                models = []
+
+                if provider == "openai":
+                    models = llm_manager.get_openai_models()
+                elif provider == "anthropic":
+                    models = llm_manager.get_anthropic_models()
+                elif provider == "google":
+                    models = llm_manager.get_google_models()
+                elif provider == "openrouter":
+                    models = llm_manager.get_openrouter_models()
+                elif provider == "ollama":
+                    models = llm_manager.get_ollama_models()
+                else:
+                    return jsonify({"error": f"Unknown provider: {provider}"}), 400
+
+                # Format models for the UI
+                formatted_models = []
+                for model in models:
+                    # Format depends on the provider
+                    if provider == "openrouter":
+                        # OpenRouter models include the provider name
+                        parts = model.split("/")
+                        if len(parts) > 1:
+                            provider_name = parts[0]
+                            model_name = "/".join(parts[1:])
+                            formatted_models.append({
+                                "value": model,
+                                "label": f"{model_name} ({provider_name})"
+                            })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model
+                            })
+                    elif provider == "ollama":
+                        # Ollama models may have tags
+                        parts = model.split(":")
+                        if len(parts) > 1:
+                            model_name = parts[0]
+                            tag = parts[1]
+                            formatted_models.append({
+                                "value": model,
+                                "label": f"{model_name} ({tag})"
+                            })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model
+                            })
+                    elif provider == "anthropic":
+                        # Format Anthropic models to be more readable
+                        if model.startswith("claude-"):
+                            # Extract version and model type
+                            parts = model.split("-")
+                            if len(parts) >= 3:
+                                model_type = parts[1].capitalize()
+                                version = parts[2]
+                                formatted_models.append({
+                                    "value": model,
+                                    "label": f"Claude {model_type} {version}"
+                                })
+                            else:
+                                formatted_models.append({
+                                    "value": model,
+                                    "label": model.replace("-", " ").title()
+                                })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model.replace("-", " ").title()
+                            })
+                    elif provider == "google":
+                        # Format Google models to be more readable
+                        if model.startswith("gemini-"):
+                            parts = model.split("-")
+                            if len(parts) >= 3:
+                                version = parts[1]
+                                model_type = parts[2]
+                                formatted_models.append({
+                                    "value": model,
+                                    "label": f"Gemini {version} {model_type.capitalize()}"
+                                })
+                            else:
+                                formatted_models.append({
+                                    "value": model,
+                                    "label": model.replace("-", " ").title()
+                                })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model.replace("-", " ").title()
+                            })
+                    else:
+                        # Default format for OpenAI and others
+                        if model.startswith("gpt-"):
+                            # Make GPT models more readable
+                            label = model.replace("-", " ").upper()
+                            formatted_models.append({
+                                "value": model,
+                                "label": label
+                            })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model
+                            })
+
+                return jsonify({"models": formatted_models})
+            except Exception as e:
+                logger.error(f"Error fetching models for {provider}: {e}")
+                return jsonify({"error": str(e)}), 500
+
     def _setup_socketio_events(self):
         """Set up the SocketIO events."""
 
@@ -104,10 +277,23 @@ class WebServer:
             logger.info(f"Received message from client: {data}")
 
             # Forward the message to the WebSocket clients
-            asyncio.run_coroutine_threadsafe(
-                self._broadcast_message(data),
-                asyncio.get_event_loop()
-            )
+            try:
+                # Try to get the existing event loop
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    # If there's no event loop in this thread, create a new one
+                    logger.debug("No event loop in current thread, creating a new one")
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                # Run the coroutine in the event loop
+                asyncio.run_coroutine_threadsafe(
+                    self._broadcast_message(data),
+                    loop
+                )
+            except Exception as e:
+                logger.error(f"Error broadcasting message: {e}")
 
             # Call the appropriate handler
             message_type = data.get("type")
@@ -413,3 +599,73 @@ class WebServer:
         else:
             # Regular browser window
             threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+
+    # Settings management methods using ConfigurationService
+    def _load_llm_settings(self):
+        """Load LLM settings from file using ConfigurationService."""
+        config = ConfigurationService.load_config()
+
+        # Convert from the config format to the UI format
+        return {
+            "default_provider": config.get("default_llm_provider", "openai"),
+            "default_model": config.get("default_llm_model", "gpt-3.5-turbo"),
+            "api_keys": {
+                "openai": config.get("api_keys", {}).get("openai", ""),
+                "anthropic": config.get("api_keys", {}).get("anthropic", ""),
+                "google": config.get("api_keys", {}).get("google", ""),
+                "openrouter": config.get("api_keys", {}).get("openrouter", "")
+            },
+            "ollama_host": config.get("ollama", {}).get("host", "http://localhost:11434")
+        }
+
+    def _save_llm_settings(self, settings):
+        """Save LLM settings to file using ConfigurationService."""
+        # Load existing config to preserve other settings
+        config = ConfigurationService.load_config()
+
+        # Update config with new settings
+        if "default_provider" in settings:
+            config["default_llm_provider"] = settings["default_provider"]
+        if "default_model" in settings:
+            config["default_llm_model"] = settings["default_model"]
+
+        # Update API keys
+        if "api_keys" in settings:
+            if "api_keys" not in config:
+                config["api_keys"] = {}
+
+            for provider, key in settings["api_keys"].items():
+                config["api_keys"][provider] = key
+
+        # Update Ollama host
+        if "ollama_host" in settings:
+            if "ollama" not in config:
+                config["ollama"] = {}
+            config["ollama"]["host"] = settings["ollama_host"]
+
+        # Save config
+        return ConfigurationService.save_config(config)
+
+    def _load_mcp_servers(self):
+        """Load MCP servers from file using ConfigurationService."""
+        return ConfigurationService.load_mcp_servers()
+
+    def _add_mcp_server(self, server):
+        """Add a new MCP server using ConfigurationService."""
+        return ConfigurationService.add_mcp_server(server)
+
+    def _update_mcp_server(self, server_id, server_data):
+        """Update an existing MCP server using ConfigurationService."""
+        return ConfigurationService.update_mcp_server(server_id, server_data)
+
+    def _delete_mcp_server(self, server_id):
+        """Delete an MCP server using ConfigurationService."""
+        return ConfigurationService.delete_mcp_server(server_id)
+
+    def _load_general_settings(self):
+        """Load general settings from file using ConfigurationService."""
+        return ConfigurationService.load_general_settings()
+
+    def _save_general_settings(self, settings):
+        """Save general settings to file using ConfigurationService."""
+        return ConfigurationService.save_general_settings(settings)

@@ -2,7 +2,7 @@
 LLM Manager for the exo Multi-Agent Framework
 
 This module handles the integration with Language Model providers,
-including OpenAI and Anthropic.
+including OpenAI, Anthropic, Google, OpenRouter, and Ollama.
 """
 
 import os
@@ -20,7 +20,7 @@ class LLMManager:
     LLM Manager for the exo Multi-Agent Framework
 
     This class handles the integration with Language Model providers,
-    including OpenAI and Anthropic.
+    including OpenAI, Anthropic, Google, OpenRouter, and Ollama.
     """
 
     def __init__(self, onboarding: Optional[Onboarding] = None):
@@ -35,6 +35,7 @@ class LLMManager:
         # Get API keys and configuration
         self.openai_api_key = self.onboarding.get_env_var("OPENAI_API_KEY")
         self.anthropic_api_key = self.onboarding.get_env_var("ANTHROPIC_API_KEY")
+        self.google_api_key = self.onboarding.get_env_var("GOOGLE_API_KEY")
         self.openrouter_api_key = self.onboarding.get_env_var("OPENROUTER_API_KEY")
         self.ollama_base_url = self.onboarding.get_env_var("OLLAMA_BASE_URL") or "http://localhost:11434"
 
@@ -46,6 +47,7 @@ class LLMManager:
         self.available_models = {
             "openai": [],
             "anthropic": [],
+            "google": [],
             "openrouter": [],
             "ollama": []
         }
@@ -97,6 +99,27 @@ class LLMManager:
                     logger.warning("Failed to load Anthropic models: %s", response.text)
             except Exception as e:
                 logger.warning("Error loading Anthropic models: %s", e)
+
+        # Try Google API
+        if self.google_api_key:
+            try:
+                headers = {
+                    "x-goog-api-key": self.google_api_key,
+                    "Content-Type": "application/json"
+                }
+                response = requests.get(
+                    "https://generativelanguage.googleapis.com/v1beta/models",
+                    headers=headers,
+                    timeout=5
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    self.available_models["google"] = [model["name"].split("/")[-1] for model in data["models"]]
+                    logger.info("Loaded %d Google models", len(self.available_models["google"]))
+                else:
+                    logger.warning("Failed to load Google models: %s", response.text)
+            except Exception as e:
+                logger.warning("Error loading Google models: %s", e)
 
         # Try OpenRouter API
         if self.openrouter_api_key:
@@ -181,6 +204,8 @@ class LLMManager:
                 provider = "openai"
             elif model.startswith("claude-"):
                 provider = "anthropic"
+            elif model.startswith("gemini-") or model.startswith("models/gemini"):
+                provider = "google"
             elif model.startswith("anthropic/") or model.startswith("openai/") or model.startswith("meta/"):
                 provider = "openrouter"
             else:
@@ -192,6 +217,8 @@ class LLMManager:
             return self._generate_openai(prompt, model, max_tokens, temperature)
         elif provider == "anthropic":
             return self._generate_anthropic(prompt, model, max_tokens, temperature)
+        elif provider == "google":
+            return self._generate_google(prompt, model, max_tokens, temperature)
         elif provider == "openrouter":
             return self._generate_openrouter(prompt, model, max_tokens, temperature)
         elif provider == "ollama":
@@ -225,15 +252,25 @@ class LLMManager:
             }
 
             # Check if using a chat model
-            is_chat_model = model.startswith("gpt-")
+            is_chat_model = model.startswith("gpt-") or model.startswith("o3-") or model == "o3"
 
             if is_chat_model:
-                data = {
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": max_tokens,
-                    "temperature": temperature
-                }
+                # Check if the model is a newer OpenAI model that requires max_completion_tokens
+                if model == "o3-mini" or model == "o3" or model.startswith("o3-"):
+                    # o3 models don't support temperature parameter
+                    data = {
+                        "model": model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_completion_tokens": max_tokens
+                    }
+                else:
+                    # Use max_tokens for other models
+                    data = {
+                        "model": model,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": max_tokens,
+                        "temperature": temperature
+                    }
                 url = "https://api.openai.com/v1/chat/completions"
             else:
                 data = {
@@ -312,6 +349,73 @@ class LLMManager:
         except Exception as e:
             logger.error("Error generating text with Anthropic: %s", e)
             return False, f"Error generating text with Anthropic: {e}"
+
+    def _generate_google(self, prompt: str, model: str,
+                         max_tokens: int, temperature: float) -> Tuple[bool, str]:
+        """
+        Generate text using Google Gemini API.
+
+        Args:
+            prompt: Prompt to generate text from
+            model: Model to use
+            max_tokens: Maximum number of tokens to generate
+            temperature: Temperature for generation
+
+        Returns:
+            Tuple of (success, generated_text)
+        """
+        if not self.google_api_key:
+            logger.warning("Google API key not set")
+            return False, "Error: Google API key not set"
+
+        try:
+            # Clean up model name if it includes the full path
+            if "/" in model:
+                model = model.split("/")[-1]
+
+            headers = {
+                "x-goog-api-key": self.google_api_key,
+                "Content-Type": "application/json"
+            }
+
+            data = {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [{"text": prompt}]
+                    }
+                ],
+                "generationConfig": {
+                    "maxOutputTokens": max_tokens,
+                    "temperature": temperature
+                }
+            }
+
+            response = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                headers=headers,
+                json=data,
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                # Extract the generated text from the response
+                if "candidates" in data and len(data["candidates"]) > 0:
+                    candidate = data["candidates"][0]
+                    if "content" in candidate and "parts" in candidate["content"]:
+                        parts = candidate["content"]["parts"]
+                        if len(parts) > 0 and "text" in parts[0]:
+                            return True, parts[0]["text"]
+
+                logger.warning("Unexpected response format from Google API")
+                return False, "Error: Unexpected response format from Google API"
+            else:
+                logger.warning("Google API request failed: %s", response.text)
+                return False, f"Error: Google API request failed: {response.text}"
+        except Exception as e:
+            logger.error("Error generating text with Google: %s", e)
+            return False, f"Error generating text with Google: {e}"
 
     def _generate_openrouter(self, prompt: str, model: str,
                            max_tokens: int, temperature: float) -> Tuple[bool, str]:
@@ -437,6 +541,8 @@ class LLMManager:
                 provider = "openai"
             elif model.startswith("claude-"):
                 provider = "anthropic"
+            elif model.startswith("gemini-") or model.startswith("models/gemini"):
+                provider = "google"
             elif model.startswith("anthropic/") or model.startswith("openai/") or model.startswith("meta/"):
                 provider = "openrouter"
             else:
@@ -448,6 +554,8 @@ class LLMManager:
             return self._chat_openai(messages, model, max_tokens, temperature)
         elif provider == "anthropic":
             return self._chat_anthropic(messages, model, max_tokens, temperature)
+        elif provider == "google":
+            return self._chat_google(messages, model, max_tokens, temperature)
         elif provider == "openrouter":
             return self._chat_openrouter(messages, model, max_tokens, temperature)
         elif provider == "ollama":
@@ -480,12 +588,22 @@ class LLMManager:
                 "Content-Type": "application/json"
             }
 
-            data = {
-                "model": model,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature
-            }
+            # Check if the model is a newer OpenAI model that requires max_completion_tokens
+            if model == "o3-mini" or model == "o3" or model.startswith("o3-"):
+                # o3 models don't support temperature parameter
+                data = {
+                    "model": model,
+                    "messages": messages,
+                    "max_completion_tokens": max_tokens
+                }
+            else:
+                # Use max_tokens for other models
+                data = {
+                    "model": model,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature
+                }
 
             response = requests.post(
                 "https://api.openai.com/v1/chat/completions",
@@ -503,6 +621,92 @@ class LLMManager:
         except Exception as e:
             logger.error("Error chatting with OpenAI: %s", e)
             return False, f"Error chatting with OpenAI: {e}"
+
+    def _chat_google(self, messages: List[Dict[str, str]], model: str,
+                       max_tokens: int, temperature: float) -> Tuple[bool, str]:
+        """
+        Chat with Google Gemini API.
+
+        Args:
+            messages: List of messages in the conversation
+            model: Model to use
+            max_tokens: Maximum number of tokens to generate
+            temperature: Temperature for generation
+
+        Returns:
+            Tuple of (success, response_text)
+        """
+        if not self.google_api_key:
+            logger.warning("Google API key not set")
+            return False, "Error: Google API key not set"
+
+        try:
+            # Clean up model name if it includes the full path
+            if "/" in model:
+                model = model.split("/")[-1]
+
+            headers = {
+                "x-goog-api-key": self.google_api_key,
+                "Content-Type": "application/json"
+            }
+
+            # Convert messages to Google Gemini format
+            contents = []
+            for message in messages:
+                role = message.get("role", "user")
+                content = message.get("content", "")
+
+                # Map OpenAI roles to Google roles
+                if role == "system":
+                    # Add system message as a user message with a special prefix
+                    contents.append({
+                        "role": "user",
+                        "parts": [{"text": f"[System Instructions]: {content}"}]
+                    })
+                elif role == "assistant":
+                    contents.append({
+                        "role": "model",
+                        "parts": [{"text": content}]
+                    })
+                else:  # user or default
+                    contents.append({
+                        "role": "user",
+                        "parts": [{"text": content}]
+                    })
+
+            data = {
+                "contents": contents,
+                "generationConfig": {
+                    "maxOutputTokens": max_tokens,
+                    "temperature": temperature
+                }
+            }
+
+            response = requests.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                headers=headers,
+                json=data,
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                # Extract the generated text from the response
+                if "candidates" in data and len(data["candidates"]) > 0:
+                    candidate = data["candidates"][0]
+                    if "content" in candidate and "parts" in candidate["content"]:
+                        parts = candidate["content"]["parts"]
+                        if len(parts) > 0 and "text" in parts[0]:
+                            return True, parts[0]["text"]
+
+                logger.warning("Unexpected response format from Google API")
+                return False, "Error: Unexpected response format from Google API"
+            else:
+                logger.warning("Google API request failed: %s", response.text)
+                return False, f"Error: Google API request failed: {response.text}"
+        except Exception as e:
+            logger.error("Error chatting with Google: %s", e)
+            return False, f"Error chatting with Google: {e}"
 
     def _chat_openrouter(self, messages: List[Dict[str, str]], model: str,
                           max_tokens: int, temperature: float) -> Tuple[bool, str]:
