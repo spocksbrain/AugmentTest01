@@ -666,8 +666,12 @@ function renderMcpServersList(servers) {
         serverItem.className = 'server-item';
         serverItem.innerHTML = `
             <div class="server-info">
-                <div class="server-name">${server.name}</div>
+                <div class="server-name">
+                    ${server.name}
+                    ${server.official ? '<span class="official-badge">Official</span>' : ''}
+                </div>
                 <div class="server-url">${server.url}</div>
+                ${server.description ? `<div class="server-description">${server.description}</div>` : ''}
             </div>
             <div class="server-actions">
                 <button class="edit-button" data-id="${server.id}">
