@@ -130,6 +130,129 @@ class WebServer:
                 success = self._save_general_settings(data)
                 return jsonify({"success": success})
 
+        @self.app.route("/api/models/<provider>", methods=["GET"])
+        def get_models(provider):
+            """Get available models for a specific provider."""
+            try:
+                # Import the LLM manager
+                from exo.agents.llm_manager import LLMManager
+
+                # Create an instance of the LLM manager
+                llm_manager = LLMManager()
+
+                # Get models for the specified provider
+                models = []
+
+                if provider == "openai":
+                    models = llm_manager.get_openai_models()
+                elif provider == "anthropic":
+                    models = llm_manager.get_anthropic_models()
+                elif provider == "google":
+                    models = llm_manager.get_google_models()
+                elif provider == "openrouter":
+                    models = llm_manager.get_openrouter_models()
+                elif provider == "ollama":
+                    models = llm_manager.get_ollama_models()
+                else:
+                    return jsonify({"error": f"Unknown provider: {provider}"}), 400
+
+                # Format models for the UI
+                formatted_models = []
+                for model in models:
+                    # Format depends on the provider
+                    if provider == "openrouter":
+                        # OpenRouter models include the provider name
+                        parts = model.split("/")
+                        if len(parts) > 1:
+                            provider_name = parts[0]
+                            model_name = "/".join(parts[1:])
+                            formatted_models.append({
+                                "value": model,
+                                "label": f"{model_name} ({provider_name})"
+                            })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model
+                            })
+                    elif provider == "ollama":
+                        # Ollama models may have tags
+                        parts = model.split(":")
+                        if len(parts) > 1:
+                            model_name = parts[0]
+                            tag = parts[1]
+                            formatted_models.append({
+                                "value": model,
+                                "label": f"{model_name} ({tag})"
+                            })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model
+                            })
+                    elif provider == "anthropic":
+                        # Format Anthropic models to be more readable
+                        if model.startswith("claude-"):
+                            # Extract version and model type
+                            parts = model.split("-")
+                            if len(parts) >= 3:
+                                model_type = parts[1].capitalize()
+                                version = parts[2]
+                                formatted_models.append({
+                                    "value": model,
+                                    "label": f"Claude {model_type} {version}"
+                                })
+                            else:
+                                formatted_models.append({
+                                    "value": model,
+                                    "label": model.replace("-", " ").title()
+                                })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model.replace("-", " ").title()
+                            })
+                    elif provider == "google":
+                        # Format Google models to be more readable
+                        if model.startswith("gemini-"):
+                            parts = model.split("-")
+                            if len(parts) >= 3:
+                                version = parts[1]
+                                model_type = parts[2]
+                                formatted_models.append({
+                                    "value": model,
+                                    "label": f"Gemini {version} {model_type.capitalize()}"
+                                })
+                            else:
+                                formatted_models.append({
+                                    "value": model,
+                                    "label": model.replace("-", " ").title()
+                                })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model.replace("-", " ").title()
+                            })
+                    else:
+                        # Default format for OpenAI and others
+                        if model.startswith("gpt-"):
+                            # Make GPT models more readable
+                            label = model.replace("-", " ").upper()
+                            formatted_models.append({
+                                "value": model,
+                                "label": label
+                            })
+                        else:
+                            formatted_models.append({
+                                "value": model,
+                                "label": model
+                            })
+
+                return jsonify({"models": formatted_models})
+            except Exception as e:
+                logger.error(f"Error fetching models for {provider}: {e}")
+                return jsonify({"error": str(e)}), 500
+
     def _setup_socketio_events(self):
         """Set up the SocketIO events."""
 

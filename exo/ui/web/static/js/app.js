@@ -455,7 +455,36 @@ tabButtons.forEach(button => {
 
 // Update model options based on selected provider
 defaultProvider.addEventListener('change', () => {
-    updateModelOptions();
+    const provider = defaultProvider.value;
+
+    // Show loading state
+    defaultModel.innerHTML = '<option value="">Loading models...</option>';
+
+    // Fetch models from the API
+    fetch(`/api/models/${provider}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.models && data.models.length > 0) {
+                // Clear existing options
+                defaultModel.innerHTML = '';
+
+                // Add new options
+                data.models.forEach(model => {
+                    const optionElement = document.createElement('option');
+                    optionElement.value = model.value;
+                    optionElement.textContent = model.label;
+                    defaultModel.appendChild(optionElement);
+                });
+            } else {
+                // No models found, use fallback
+                updateModelOptionsFromStatic();
+            }
+        })
+        .catch(error => {
+            console.error(`Error fetching ${provider} models:`, error);
+            // Use fallback on error
+            updateModelOptionsFromStatic();
+        });
 });
 
 // Toggle password visibility
@@ -533,8 +562,43 @@ function loadSettings() {
         .then(response => response.json())
         .then(data => {
             defaultProvider.value = data.default_provider || 'openai';
-            updateModelOptions();
-            defaultModel.value = data.default_model || '';
+
+            // Fetch models for the selected provider
+            const provider = defaultProvider.value;
+
+            // Show loading state
+            defaultModel.innerHTML = '<option value="">Loading models...</option>';
+
+            // Fetch models from the API
+            fetch(`/api/models/${provider}`)
+                .then(response => response.json())
+                .then(modelData => {
+                    if (modelData.models && modelData.models.length > 0) {
+                        // Clear existing options
+                        defaultModel.innerHTML = '';
+
+                        // Add new options
+                        modelData.models.forEach(model => {
+                            const optionElement = document.createElement('option');
+                            optionElement.value = model.value;
+                            optionElement.textContent = model.label;
+                            defaultModel.appendChild(optionElement);
+                        });
+
+                        // Set the selected model
+                        defaultModel.value = data.default_model || '';
+                    } else {
+                        // No models found, use fallback
+                        updateModelOptionsFromStatic();
+                        defaultModel.value = data.default_model || '';
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error fetching ${provider} models:`, error);
+                    // Use fallback on error
+                    updateModelOptionsFromStatic();
+                    defaultModel.value = data.default_model || '';
+                });
 
             if (data.api_keys) {
                 openaiApiKey.value = data.api_keys.openai || '';
@@ -571,8 +635,8 @@ function loadSettings() {
         });
 }
 
-// Update model options based on selected provider
-function updateModelOptions() {
+// Update model options from static list (fallback)
+function updateModelOptionsFromStatic() {
     const provider = defaultProvider.value;
     const options = modelOptions[provider] || [];
 
