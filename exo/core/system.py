@@ -36,6 +36,9 @@ class ExoSystem:
         # Initialize the Primary Interface Agent
         self.pia = PrimaryInterfaceAgent(cnc_agent=self.cnc_agent)
 
+        # List to track all agents in the system
+        self.agents = [self.cnc_agent, self.pia]
+
         # Register initial domain agents
         self._register_initial_domain_agents()
 
@@ -77,4 +80,8 @@ class ExoSystem:
         agent = agent_class()
         self.cnc_agent.register_domain_agent(domain, agent)
         self.pia.register_domain_agent(domain, agent)
+
+        # Add to the list of all agents
+        self.agents.append(agent)
+
         return agent

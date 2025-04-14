@@ -64,6 +64,7 @@
                     <button class="tab-button active" data-tab="llm-settings">LLM Settings</button>
                     <button class="tab-button" data-tab="mcp-settings">MCP Servers</button>
                     <button class="tab-button" data-tab="general-settings">General</button>
+                    <button class="tab-button" data-tab="agents-settings">Agents</button>
                 </div>
 
                 <!-- LLM Settings Tab -->
@@ -186,6 +187,55 @@
                             <label for="auto-scroll">Auto-scroll to new messages</label>
                         </div>
                         <button id="save-general-settings" class="save-button">Save General Settings</button>
+                    </div>
+                </div>
+
+                <!-- Agents Settings Tab -->
+                <div id="agents-settings" class="tab-content">
+                    <h3>Agent Settings</h3>
+
+                    <div class="settings-section">
+                        <h4>Agent LLM Configuration</h4>
+                        <div id="agents-list" class="agents-list">
+                            <!-- Will be populated dynamically -->
+                            <div class="empty-state">No agents available</div>
+                        </div>
+                    </div>
+
+                    <!-- Agent LLM Settings Form -->
+                    <div id="agent-llm-form" class="agent-form hidden">
+                        <h4 id="agent-form-title">Configure Agent LLM</h4>
+                        <input type="hidden" id="agent-id" value="">
+                        <div class="form-group">
+                            <label for="agent-name">Agent Name:</label>
+                            <input type="text" id="agent-name" name="agent-name" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="agent-type">Agent Type:</label>
+                            <input type="text" id="agent-type" name="agent-type" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="agent-provider">LLM Provider:</label>
+                            <select id="agent-provider" name="agent-provider">
+                                <option value="">Use System Default</option>
+                                <option value="openai">OpenAI</option>
+                                <option value="anthropic">Anthropic</option>
+                                <option value="google">Google</option>
+                                <option value="openrouter">OpenRouter</option>
+                                <option value="ollama">Ollama (Local)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="agent-model">LLM Model:</label>
+                            <select id="agent-model" name="agent-model">
+                                <option value="">Use System Default</option>
+                                <!-- Will be populated based on selected provider -->
+                            </select>
+                        </div>
+                        <div class="button-group">
+                            <button id="save-agent-llm" class="save-button">Save Agent Settings</button>
+                            <button id="cancel-agent-llm" class="cancel-button">Cancel</button>
+                        </div>
                     </div>
                 </div>
             </div>

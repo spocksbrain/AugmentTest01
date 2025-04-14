@@ -272,6 +272,60 @@ body {
     font-size: 14px;
 }
 
+/* Agent settings styles */
+.agents-list {
+    margin-bottom: 1rem;
+}
+
+.agent-item {
+    background-color: #333333;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.agent-info {
+    flex: 1;
+}
+
+.agent-name {
+    font-weight: bold;
+    margin-bottom: 0.25rem;
+}
+
+.agent-type {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    margin-bottom: 0.25rem;
+}
+
+.agent-llm {
+    font-size: 0.9rem;
+    color: #0078d7;
+}
+
+.agent-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.agent-form {
+    background-color: #333333;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: #777777;
+    font-style: italic;
+}
+
 .tooltip .tooltip-text {
     visibility: hidden;
     width: 300px;

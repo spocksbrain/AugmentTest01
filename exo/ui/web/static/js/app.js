@@ -377,6 +377,18 @@ const mcpServerApiKey = document.getElementById('mcp-server-api-key');
 const saveMcpServerButton = document.getElementById('save-mcp-server');
 const cancelMcpServerButton = document.getElementById('cancel-mcp-server');
 
+// Agent Settings Elements
+const agentsList = document.getElementById('agents-list');
+const agentLlmForm = document.getElementById('agent-llm-form');
+const agentFormTitle = document.getElementById('agent-form-title');
+const agentId = document.getElementById('agent-id');
+const agentName = document.getElementById('agent-name');
+const agentType = document.getElementById('agent-type');
+const agentProvider = document.getElementById('agent-provider');
+const agentModel = document.getElementById('agent-model');
+const saveAgentLlmButton = document.getElementById('save-agent-llm');
+const cancelAgentLlmButton = document.getElementById('cancel-agent-llm');
+
 // General Settings Elements
 const themeSelect = document.getElementById('theme-select');
 const autoScroll = document.getElementById('auto-scroll');
@@ -545,6 +557,55 @@ saveMcpServerButton.addEventListener('click', () => {
     saveMcpServer(server);
 });
 
+// Agent provider change event
+agentProvider.addEventListener('change', () => {
+    const provider = agentProvider.value;
+
+    if (provider) {
+        // Show loading state
+        agentModel.innerHTML = '<option value="">Use System Default</option><option value="" disabled>Loading models...</option>';
+
+        // Fetch models from the API
+        fetch(`/api/models/${provider}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.models && data.models.length > 0) {
+                    // Clear existing options except the default one
+                    agentModel.innerHTML = '<option value="">Use System Default</option>';
+
+                    // Add new options
+                    data.models.forEach(model => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = model.value;
+                        optionElement.textContent = model.label;
+                        agentModel.appendChild(optionElement);
+                    });
+                } else {
+                    // No models found, use fallback
+                    updateAgentModelOptionsFromStatic(provider);
+                }
+            })
+            .catch(error => {
+                console.error(`Error fetching ${provider} models:`, error);
+                // Use fallback on error
+                updateAgentModelOptionsFromStatic(provider);
+            });
+    } else {
+        // Reset model options
+        agentModel.innerHTML = '<option value="">Use System Default</option>';
+    }
+});
+
+// Save agent LLM settings
+saveAgentLlmButton.addEventListener('click', () => {
+    saveAgentLlmSettings();
+});
+
+// Cancel agent LLM form
+cancelAgentLlmButton.addEventListener('click', () => {
+    agentLlmForm.classList.add('hidden');
+});
+
 // Save general settings
 saveGeneralSettingsButton.addEventListener('click', () => {
     const settings = {
@@ -632,6 +693,16 @@ function loadSettings() {
         })
         .catch(error => {
             console.error('Error loading general settings:', error);
+        });
+
+    // Load agents
+    fetch('/api/agents')
+        .then(response => response.json())
+        .then(data => {
+            renderAgentsList(data.agents || []);
+        })
+        .catch(error => {
+            console.error('Error loading agents:', error);
         });
 }
 
@@ -817,6 +888,167 @@ function saveGeneralSettings(settings) {
         .catch(error => {
             console.error('Error saving general settings:', error);
             alert('Failed to save general settings: ' + error.message);
+        });
+}
+
+// Render agents list
+function renderAgentsList(agents) {
+    if (agents.length === 0) {
+        agentsList.innerHTML = '<div class="empty-state">No agents available</div>';
+        return;
+    }
+
+    agentsList.innerHTML = '';
+
+    agents.forEach(agent => {
+        const agentItem = document.createElement('div');
+        agentItem.className = 'agent-item';
+
+        // Determine LLM info text
+        let llmInfo = 'Using system default';
+        if (agent.llm && agent.llm.provider) {
+            llmInfo = `${agent.llm.provider}${agent.llm.model ? ` / ${agent.llm.model}` : ''}`;
+        }
+
+        agentItem.innerHTML = `
+            <div class="agent-info">
+                <div class="agent-name">${agent.name}</div>
+                <div class="agent-type">${agent.type}</div>
+                <div class="agent-llm">${llmInfo}</div>
+            </div>
+            <div class="agent-actions">
+                <button class="configure-button" data-id="${agent.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+
+        agentsList.appendChild(agentItem);
+    });
+
+    // Add event listeners for configure buttons
+    document.querySelectorAll('.configure-button').forEach(button => {
+        button.addEventListener('click', () => {
+            const agentId = button.getAttribute('data-id');
+            configureAgentLlm(agentId, agents);
+        });
+    });
+}
+
+// Configure agent LLM
+function configureAgentLlm(agentId, agents) {
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return;
+
+    agentFormTitle.textContent = `Configure ${agent.name} LLM Settings`;
+    agentId.value = agent.id;
+    agentName.value = agent.name;
+    agentType.value = agent.type;
+
+    // Set provider and model if available
+    agentProvider.value = agent.llm && agent.llm.provider ? agent.llm.provider : '';
+
+    // Update model options based on selected provider
+    if (agentProvider.value) {
+        // Show loading state
+        agentModel.innerHTML = '<option value="">Use System Default</option><option value="" disabled>Loading models...</option>';
+
+        // Fetch models from the API
+        fetch(`/api/models/${agentProvider.value}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.models && data.models.length > 0) {
+                    // Clear existing options except the default one
+                    agentModel.innerHTML = '<option value="">Use System Default</option>';
+
+                    // Add new options
+                    data.models.forEach(model => {
+                        const optionElement = document.createElement('option');
+                        optionElement.value = model.value;
+                        optionElement.textContent = model.label;
+                        agentModel.appendChild(optionElement);
+                    });
+
+                    // Set the selected model
+                    agentModel.value = agent.llm && agent.llm.model ? agent.llm.model : '';
+                } else {
+                    // No models found, use fallback
+                    updateAgentModelOptionsFromStatic(agentProvider.value);
+                    agentModel.value = agent.llm && agent.llm.model ? agent.llm.model : '';
+                }
+            })
+            .catch(error => {
+                console.error(`Error fetching ${agentProvider.value} models:`, error);
+                // Use fallback on error
+                updateAgentModelOptionsFromStatic(agentProvider.value);
+                agentModel.value = agent.llm && agent.llm.model ? agent.llm.model : '';
+            });
+    } else {
+        // Reset model options
+        agentModel.innerHTML = '<option value="">Use System Default</option>';
+    }
+
+    // Show the form
+    agentLlmForm.classList.remove('hidden');
+}
+
+// Update agent model options from static list (fallback)
+function updateAgentModelOptionsFromStatic(provider) {
+    const options = modelOptions[provider] || [];
+
+    // Clear existing options except the default one
+    agentModel.innerHTML = '<option value="">Use System Default</option>';
+
+    // Add new options
+    options.forEach(option => {
+        const optionElement = document.createElement('option');
+        optionElement.value = option.value;
+        optionElement.textContent = option.label;
+        agentModel.appendChild(optionElement);
+    });
+}
+
+// Save agent LLM settings
+function saveAgentLlmSettings() {
+    const settings = {
+        llm: {
+            provider: agentProvider.value,
+            model: agentModel.value
+        }
+    };
+
+    fetch(`/api/agents/${agentId.value}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Agent LLM settings saved successfully!');
+                agentLlmForm.classList.add('hidden');
+
+                // Reload agents list
+                fetch('/api/agents')
+                    .then(response => response.json())
+                    .then(data => {
+                        renderAgentsList(data.agents || []);
+                    })
+                    .catch(error => {
+                        console.error('Error loading agents:', error);
+                    });
+            } else {
+                alert('Failed to save agent LLM settings: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            console.error('Error saving agent LLM settings:', error);
+            alert('Failed to save agent LLM settings: ' + error.message);
         });
 }
 

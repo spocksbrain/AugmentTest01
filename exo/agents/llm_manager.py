@@ -32,6 +32,14 @@ class LLMManager:
         """
         self.onboarding = onboarding or Onboarding()
 
+        # Initialize API keys and configuration
+        self.reload_configuration()
+
+    def reload_configuration(self):
+        """
+        Reload API keys and configuration from environment variables.
+        This allows the LLM Manager to pick up changes made through the UI.
+        """
         # Get API keys and configuration
         self.openai_api_key = self.onboarding.get_env_var("OPENAI_API_KEY")
         self.anthropic_api_key = self.onboarding.get_env_var("ANTHROPIC_API_KEY")
@@ -166,6 +174,71 @@ class LLMManager:
         """
         return self.available_models
 
+    def get_openai_models(self) -> List[str]:
+        """
+        Get available OpenAI models.
+
+        Returns:
+            List of OpenAI model IDs
+        """
+        # If we haven't loaded models yet, try to load them now
+        if "openai" not in self.available_models or not self.available_models["openai"]:
+            self._load_openai_models()
+
+        return self.available_models.get("openai", [])
+
+    def get_anthropic_models(self) -> List[str]:
+        """
+        Get available Anthropic models.
+
+        Returns:
+            List of Anthropic model IDs
+        """
+        # If we haven't loaded models yet, try to load them now
+        if "anthropic" not in self.available_models or not self.available_models["anthropic"]:
+            self._load_anthropic_models()
+
+        return self.available_models.get("anthropic", [])
+
+    def get_google_models(self) -> List[str]:
+        """
+        Get available Google models.
+
+        Returns:
+            List of Google model IDs
+        """
+        # If we haven't loaded models yet, try to load them now
+        if "google" not in self.available_models or not self.available_models["google"]:
+            self._load_google_models()
+
+        return self.available_models.get("google", [])
+
+    def get_openrouter_models(self) -> List[str]:
+        """
+        Get available OpenRouter models.
+
+        Returns:
+            List of OpenRouter model IDs
+        """
+        # If we haven't loaded models yet, try to load them now
+        if "openrouter" not in self.available_models or not self.available_models["openrouter"]:
+            self._load_openrouter_models()
+
+        return self.available_models.get("openrouter", [])
+
+    def get_ollama_models(self) -> List[str]:
+        """
+        Get available Ollama models.
+
+        Returns:
+            List of Ollama model IDs
+        """
+        # If we haven't loaded models yet, try to load them now
+        if "ollama" not in self.available_models or not self.available_models["ollama"]:
+            self._load_ollama_models()
+
+        return self.available_models.get("ollama", [])
+
     def validate_connection(self) -> bool:
         """
         Validate connection to LLM providers.
@@ -191,6 +264,9 @@ class LLMManager:
         Returns:
             Tuple of (success, generated_text)
         """
+        # Reload configuration to ensure we have the latest API keys
+        self.reload_configuration()
+
         # Use default provider and model if not specified
         if provider is None:
             provider = self.default_provider
@@ -528,6 +604,9 @@ class LLMManager:
         Returns:
             Tuple of (success, response_text)
         """
+        # Reload configuration to ensure we have the latest API keys
+        self.reload_configuration()
+
         # Use default provider and model if not specified
         if provider is None:
             provider = self.default_provider

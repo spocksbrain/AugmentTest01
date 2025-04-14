@@ -8,6 +8,7 @@ import logging
 from typing import Dict, List, Optional, Any, Tuple
 
 from exo.core.service_registry import get_service, ServiceNames
+from exo.core.agent_configuration import get_agent_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,15 @@ class BaseAgent:
         self.agent_type = agent_type
         self.logger = logging.getLogger(f"{__name__}.{agent_type}.{name}")
 
-        # LLM preferences
-        self.llm_provider = llm_provider
-        self.llm_model = llm_model
+        # Generate a unique agent ID
+        self.agent_id = f"{agent_type}_{name}".lower().replace(" ", "_")
+
+        # Get agent-specific LLM configuration if available
+        agent_llm_config = get_agent_llm_config(self.agent_id)
+
+        # LLM preferences (constructor params override config file)
+        self.llm_provider = llm_provider or agent_llm_config.get("provider")
+        self.llm_model = llm_model or agent_llm_config.get("model")
 
         # Initialize service references
         self._mcp_manager = None
@@ -150,5 +157,8 @@ class BaseAgent:
 
         if model is None:
             model = self.llm_model
+
+        # Log which provider and model is being used
+        self.logger.debug(f"Using LLM provider: {provider or 'default'}, model: {model or 'default'}")
 
         return self.llm_manager.generate_text(prompt, model, max_tokens, temperature, provider)

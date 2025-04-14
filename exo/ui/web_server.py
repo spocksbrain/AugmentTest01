@@ -17,6 +17,8 @@ from typing import Dict, List, Optional, Any, Callable
 import requests
 
 from exo.core.configuration import ConfigurationService
+from exo.core.agent_configuration import get_all_agent_configs, get_agent_config, set_agent_llm_config
+from exo.core.service_registry import get_service, ServiceNames
 
 import websockets
 from flask import Flask, render_template, send_from_directory, request, jsonify
@@ -134,11 +136,16 @@ class WebServer:
         def get_models(provider):
             """Get available models for a specific provider."""
             try:
-                # Import the LLM manager
-                from exo.agents.llm_manager import LLMManager
+                # Import the service registry
+                from exo.core.service_registry import get_service, ServiceNames
 
-                # Create an instance of the LLM manager
-                llm_manager = LLMManager()
+                # Get the LLM manager from the service registry
+                llm_manager = get_service(ServiceNames.LLM_MANAGER)
+
+                if llm_manager is None:
+                    # Fall back to creating a new instance if not available in registry
+                    from exo.agents.llm_manager import LLMManager
+                    llm_manager = LLMManager()
 
                 # Get models for the specified provider
                 models = []
@@ -252,6 +259,79 @@ class WebServer:
             except Exception as e:
                 logger.error(f"Error fetching models for {provider}: {e}")
                 return jsonify({"error": str(e)}), 500
+
+        @self.app.route("/api/agents", methods=["GET"])
+        def get_agents():
+            """Get all available agents and their configurations."""
+            try:
+                # Get all registered agents from the system
+                system = get_service(ServiceNames.SYSTEM)
+                if not system:
+                    return jsonify({"error": "System service not available"}), 500
+
+                # Get all agent configurations
+                agent_configs = get_all_agent_configs()
+
+                # Get all active agents
+                active_agents = []
+                for agent in system.agents:
+                    # Skip agents without required attributes
+                    if not hasattr(agent, 'agent_id') or not hasattr(agent, 'name') or not hasattr(agent, 'agent_type'):
+                        logger.warning(f"Agent missing required attributes: {agent}")
+                        continue
+
+                    # Get LLM configuration
+                    llm_provider = getattr(agent, 'llm_provider', None)
+                    llm_model = getattr(agent, 'llm_model', None)
+
+                    agent_info = {
+                        "id": agent.agent_id,
+                        "name": agent.name,
+                        "type": agent.agent_type,
+                        "llm": {
+                            "provider": llm_provider,
+                            "model": llm_model
+                        }
+                    }
+                    active_agents.append(agent_info)
+
+                return jsonify({
+                    "agents": active_agents,
+                    "configurations": agent_configs
+                })
+            except Exception as e:
+                logger.error(f"Error fetching agents: {e}")
+                return jsonify({"error": str(e)}), 500
+
+        @self.app.route("/api/agents/<agent_id>", methods=["GET", "POST"])
+        def agent_config(agent_id):
+            """Get or update configuration for a specific agent."""
+            if request.method == "GET":
+                try:
+                    # Get agent configuration
+                    agent_config = get_agent_config(agent_id)
+                    return jsonify(agent_config)
+                except Exception as e:
+                    logger.error(f"Error fetching agent config for {agent_id}: {e}")
+                    return jsonify({"error": str(e)}), 500
+            else:  # POST
+                try:
+                    data = request.json
+
+                    # Update LLM configuration
+                    if "llm" in data:
+                        llm_config = data["llm"]
+                        provider = llm_config.get("provider")
+                        model = llm_config.get("model")
+
+                        success = set_agent_llm_config(agent_id, provider, model)
+                        if not success:
+                            return jsonify({"error": "Failed to update agent LLM config"}), 500
+
+                    return jsonify({"success": True})
+                except Exception as e:
+                    logger.error(f"Error updating agent config for {agent_id}: {e}")
+                    return jsonify({"error": str(e)}), 500
 
     def _setup_socketio_events(self):
         """Set up the SocketIO events."""
@@ -644,7 +724,24 @@ class WebServer:
             config["ollama"]["host"] = settings["ollama_host"]
 
         # Save config
-        return ConfigurationService.save_config(config)
+        success = ConfigurationService.save_config(config)
+
+        # If successful, update the LLM manager to use the new settings
+        if success:
+            try:
+                # Import the service registry
+                from exo.core.service_registry import get_service, ServiceNames
+
+                # Get the LLM manager from the service registry
+                llm_manager = get_service(ServiceNames.LLM_MANAGER)
+
+                if llm_manager is not None:
+                    # Reload configuration in the LLM manager
+                    llm_manager.reload_configuration()
+            except Exception as e:
+                logger.warning(f"Failed to update LLM manager: {e}")
+
+        return success
 
     def _load_mcp_servers(self):
         """Load MCP servers from file using ConfigurationService."""
