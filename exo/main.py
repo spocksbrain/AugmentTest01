@@ -88,13 +88,14 @@ def handle_ui_message(message):
                     logger.warning(f"Message missing 'content': {message}")
                     # Continue processing, as empty messages are technically valid
 
-                # Process the message through the LLM
+                # Process the message through the PrimaryInterfaceAgent
                 logger.info(f"Processing message: {content}")
 
-                # Get the LLM manager from the service registry
-                llm_manager = get_service(ServiceNames.LLM_MANAGER)
-                if not llm_manager:
-                    logger.error("LLM manager service not available")
+                # Get the system service from the service registry
+                system = get_service(ServiceNames.SYSTEM)
+                if not system:
+                    logger.error("System service not available")
+                    return
 
                 # Get the web server from the service registry
                 web_server = get_service("web_server")
@@ -102,61 +103,27 @@ def handle_ui_message(message):
                     logger.error("Web server service not available")
                     return
 
-                if llm_manager:
-                    try:
-                        # Get the comprehensive system prompt for the PIA
-                        system_prompt = get_system_prompt("pia")
+                # Process the message through the PIA
+                try:
+                    # Use the PIA to process the message
+                    response = system.pia.process_user_input(content)
 
-                        # Create a messages array for the chat API
-                        messages = [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": content}
-                        ]
-
-                        # Log that we're using the PIA system prompt
-                        logger.info("Using PIA system prompt for message processing")
-
-                        # Call the LLM
-                        success, response = llm_manager.chat(messages)
-
-                        if success:
-                            # Send the response back to the UI
-                            web_server.send_message({
-                                "type": "chat_message",
-                                "data": {
-                                    "role": "assistant",
-                                    "content": response,
-                                    "timestamp": time.time()
-                                }
-                            })
-                        else:
-                            # Send an error message
-                            logger.error(f"LLM chat failed: {response}")
-                            web_server.send_message({
-                                "type": "chat_message",
-                                "data": {
-                                    "role": "assistant",
-                                    "content": "I'm sorry, I'm having trouble connecting to my language model. Please check your API keys and internet connection.",
-                                    "timestamp": time.time()
-                                }
-                            })
-                    except Exception as e:
-                        logger.error(f"Error processing message with LLM: {e}")
-                        web_server.send_message({
-                            "type": "chat_message",
-                            "data": {
-                                "role": "assistant",
-                                "content": "I'm sorry, an error occurred while processing your message.",
-                                "timestamp": time.time()
-                            }
-                        })
-                else:
-                    # Send an error message
+                    # Send the response back to the UI
                     web_server.send_message({
                         "type": "chat_message",
                         "data": {
                             "role": "assistant",
-                            "content": "I'm sorry, the language model service is not available. Please check your configuration.",
+                            "content": response,
+                            "timestamp": time.time()
+                        }
+                    })
+                except Exception as e:
+                    logger.error(f"Error processing message with PIA: {e}")
+                    web_server.send_message({
+                        "type": "chat_message",
+                        "data": {
+                            "role": "assistant",
+                            "content": "I'm sorry, an error occurred while processing your message.",
                             "timestamp": time.time()
                         }
                     })
