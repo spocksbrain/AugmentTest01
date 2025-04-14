@@ -15,6 +15,7 @@ from exo.ui.electron_ui import ElectronUI
 from exo.core.system import ExoSystem
 from exo.core.onboarding import Onboarding
 from exo.core.service_registry import ServiceRegistry, ServiceNames, register_service, get_service
+from exo.core.system_prompts import get_system_prompt
 from exo.agents.software_engineer import SoftwareEngineerAgent
 from exo.agents.mcp_server import MCPServerAgent
 from exo.agents.voice_assistant import VoiceAssistantAgent
@@ -103,14 +104,17 @@ def handle_ui_message(message):
 
                 if llm_manager:
                     try:
-                        # Create a simple system prompt
-                        system_prompt = "You are a helpful assistant. Provide accurate and concise information."
+                        # Get the comprehensive system prompt for the PIA
+                        system_prompt = get_system_prompt("pia")
 
                         # Create a messages array for the chat API
                         messages = [
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": content}
                         ]
+
+                        # Log that we're using the PIA system prompt
+                        logger.info("Using PIA system prompt for message processing")
 
                         # Call the LLM
                         success, response = llm_manager.chat(messages)
