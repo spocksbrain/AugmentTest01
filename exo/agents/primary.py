@@ -60,6 +60,19 @@ class PrimaryInterfaceAgent:
         """
         logger.info(f"Processing user input: {input_data[:50]}... (type: {input_type})")
 
+        # Check for special system queries
+        if input_data.lower() in ["what tools do you have access to?", "do you have access to tools",
+                                "what tools can you use?", "what can you do?"]:
+            return self._list_available_tools()
+
+        if input_data.lower() in ["what mcp servers do you have access to?", "do you have access to mcp servers",
+                                 "what servers can you access?"]:
+            return self._list_available_mcp_servers()
+
+        if input_data.lower() in ["what other agents can you contact?", "what agents do you know?",
+                                 "what agents are in the system?", "what agents are available?"]:
+            return self._list_available_agents()
+
         # Add to conversation history
         self.conversation_history.append({
             "role": "user",
@@ -78,7 +91,9 @@ class PrimaryInterfaceAgent:
         else:
             # Check if this is a domain-specific task
             domain = self._identify_domain(input_data)
-            if domain and domain in self.domain_agents:
+            if domain:
+                # Log the identified domain
+                logger.info(f"Identified domain: {domain}")
                 response = self.delegate_to_domain_agent(domain, input_data)
             else:
                 # Handle directly
@@ -127,6 +142,13 @@ class PrimaryInterfaceAgent:
         """
         # Convert task to lowercase for case-insensitive matching
         task_lower = task.lower()
+
+        # Check for explicit mentions of using a specific service
+        if "using bravesearch" in task_lower or "using brave search" in task_lower or "with brave search" in task_lower:
+            return "brave_search"
+
+        if "using filesystem" in task_lower or "using file system" in task_lower:
+            return "filesystem"
 
         # Check for web search queries
         web_search_indicators = [
@@ -308,6 +330,78 @@ class PrimaryInterfaceAgent:
         logger.info("Starting UI components")
         self.ui_elements["animated_dot"].start()
         self.ui_elements["chat_window"].start()
+
+    def _list_available_tools(self) -> str:
+        """
+        List all available tools that the agent has access to.
+
+        Returns:
+            A formatted string listing all available tools
+        """
+        tools = [
+            "BraveSearch - I can search the web for information",
+            "Filesystem - I can list, read, write, and delete files",
+            "Software Engineering - I can help with coding tasks",
+            "MCP Server - I can interact with various services"
+        ]
+
+        response = "I have access to the following tools and capabilities:\n\n"
+        for tool in tools:
+            response += f"- {tool}\n"
+
+        return response
+
+    def _list_available_mcp_servers(self) -> str:
+        """
+        List all available MCP servers that the agent has access to.
+
+        Returns:
+            A formatted string listing all available MCP servers
+        """
+        from exo.core.service_registry import get_service, ServiceNames
+
+        # Get the MCP manager from the service registry
+        mcp_manager = get_service(ServiceNames.MCP_MANAGER)
+        if not mcp_manager:
+            return "I don't currently have access to any MCP servers."
+
+        try:
+            # Get the list of servers from the MCP manager
+            servers = mcp_manager.list_servers()
+
+            if not servers:
+                return "I don't currently have access to any MCP servers."
+
+            response = "I have access to the following MCP servers:\n\n"
+            for server in servers:
+                server_id = server.get("id", "Unknown")
+                server_name = server.get("name", "Unknown")
+                server_url = server.get("url", "Unknown")
+                response += f"- {server_name} (ID: {server_id}, URL: {server_url})\n"
+
+            return response
+        except Exception as e:
+            logger.error(f"Error listing MCP servers: {e}")
+            return "I'm having trouble accessing the MCP servers. I know they exist, but I can't list them right now."
+
+    def _list_available_agents(self) -> str:
+        """
+        List all available agents in the system.
+
+        Returns:
+            A formatted string listing all available agents
+        """
+        response = "I am part of a multi-agent system with the following agents:\n\n"
+        response += "- Primary Interface Agent (PIA) - That's me! I handle direct user interactions\n"
+        response += "- Command & Control (CNC) Agent - Coordinates complex tasks across multiple domains\n"
+
+        # List domain agents
+        if self.domain_agents:
+            response += "\nDomain-specific agents:\n"
+            for domain, agent in self.domain_agents.items():
+                response += f"- {domain.replace('_', ' ').title()} Agent\n"
+
+        return response
 
     def stop_ui(self) -> None:
         """Stop the UI components."""
@@ -538,12 +632,23 @@ class PrimaryInterfaceAgent:
 
         # Extract the actual search query from the user's request
         search_terms = query.lower()
+
+        # First check for explicit mentions of using BraveSearch
+        if "using bravesearch" in search_terms or "using brave search" in search_terms:
+            # Remove the "using bravesearch" part
+            search_terms = search_terms.replace("using bravesearch", "").replace("using brave search", "").strip()
+
+        # Then check for other common prefixes
         for prefix in ["search for", "find information about", "look up", "search the web for",
                       "search online for", "find out about", "what is", "who is",
                       "when did", "where is", "how to", "why does"]:
             if search_terms.startswith(prefix):
                 search_terms = search_terms[len(prefix):].strip()
                 break
+
+        # If the search terms end with a question mark, remove it
+        if search_terms.endswith("?"):
+            search_terms = search_terms[:-1].strip()
 
         # Get the MCP manager from the service registry
         mcp_manager = get_service(ServiceNames.MCP_MANAGER)

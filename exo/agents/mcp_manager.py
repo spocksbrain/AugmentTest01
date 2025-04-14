@@ -78,14 +78,21 @@ class MCPManager:
             self.servers = self.onboarding.list_mcp_servers()
         return success
 
-    def list_servers(self) -> Dict[str, Dict[str, str]]:
+    def list_servers(self) -> List[Dict[str, str]]:
         """
         List all MCP servers.
 
         Returns:
-            Dictionary of server IDs to server details
+            List of server details dictionaries
         """
-        return self.servers
+        # Convert the dictionary to a list of dictionaries with the ID included
+        server_list = []
+        for server_id, server_info in self.servers.items():
+            server_list.append({
+                "id": server_id,
+                **server_info
+            })
+        return server_list
 
     def get_server(self, server_id: str) -> Optional[Dict[str, str]]:
         """

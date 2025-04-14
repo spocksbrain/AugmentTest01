@@ -367,11 +367,9 @@ class WebServer:
                     loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(loop)
 
-                # Run the coroutine in the event loop
-                asyncio.run_coroutine_threadsafe(
-                    self._broadcast_message(data),
-                    loop
-                )
+                # Create a coroutine and run it in the event loop
+                coro = self._broadcast_message(data)
+                asyncio.run_coroutine_threadsafe(coro, loop)
             except Exception as e:
                 logger.error(f"Error broadcasting message: {e}")
 
@@ -415,10 +413,21 @@ class WebServer:
 
         # Stop the WebSocket server
         if self.websocket_server:
-            asyncio.run_coroutine_threadsafe(
-                self.websocket_server.close(),
-                asyncio.get_event_loop()
-            )
+            try:
+                # Try to get the existing event loop
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    # If there's no event loop in this thread, create a new one
+                    logger.debug("No event loop in current thread, creating a new one")
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                # Create a coroutine and run it in the event loop
+                coro = self.websocket_server.close()
+                asyncio.run_coroutine_threadsafe(coro, loop)
+            except Exception as e:
+                logger.error(f"Error stopping WebSocket server: {e}")
 
         # Wait for the threads to finish
         if self.server_thread:
@@ -539,10 +548,21 @@ class WebServer:
         self.socketio.emit("message", message)
 
         # Send the message to WebSocket clients
-        asyncio.run_coroutine_threadsafe(
-            self._broadcast_message(message),
-            asyncio.get_event_loop()
-        )
+        try:
+            # Try to get the existing event loop
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                # If there's no event loop in this thread, create a new one
+                logger.debug("No event loop in current thread, creating a new one")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            # Create a coroutine and run it in the event loop
+            coro = self._broadcast_message(message)
+            asyncio.run_coroutine_threadsafe(coro, loop)
+        except Exception as e:
+            logger.error(f"Error broadcasting message: {e}")
 
     def register_message_handler(self, message_type: str, handler: Callable[[Dict], None]):
         """
